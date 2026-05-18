@@ -1,0 +1,35 @@
+# Sextant configuration. See https://github.com/kylebastien/sextant-mcp
+# for the full schema. Every section is optional — defaults are sensible.
+
+[verdict]
+# `absolute` (default) counts every finding; `regression` only flags
+# new findings vs the baseline. `--pr` always runs in regression mode.
+mode = "absolute"
+max_errors = 0
+max_warns = 100
+
+[size]
+file_length_warn = 400
+file_length_error = 800
+fn_length_warn = 60
+fn_length_error = 120
+param_count_warn = 6
+param_count_error = 10
+
+[complexity]
+cyclomatic_warn = 10
+cyclomatic_error = 20
+nesting_warn = 4
+nesting_error = 6
+
+[duplication]
+min_tokens = 100
+
+# Uncomment to enable LLM-as-judge rules. The api key lives in an env
+# var so it's not checked in.
+# [judge]
+# enabled = true
+# provider = "anthropic"        # or "openai" | "openai-compatible"
+# model = "claude-sonnet-4-6"
+# max_tokens = 1024
+# api_key_env = "ANTHROPIC_API_KEY"

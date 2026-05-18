@@ -1,0 +1,28 @@
+# lockstep configuration.
+#
+# This file is the default; override per-CLI-invocation with --base / --config.
+
+default_branch = "main"
+
+# Allowed harmless edits on the base-side source before structural compare.
+allow_var_to_const_let = true
+allow_formatting_diff = true
+
+# Enums emit JS (an IIFE); strict default rejects the migration unless author
+# opts in. Most migrations rewrite enums to const objects / string unions.
+allow_enum_to_iife = false
+
+# Stop at first divergence per file. Set true to emit every mismatch (noisy).
+report_all_findings = false
+
+# Glob patterns excluded from pairing.
+ignore = [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/__snapshots__/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+]

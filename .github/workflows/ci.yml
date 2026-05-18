@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux runs fmt + clippy + test (the canonical lint set). macOS and
+        # Windows just run tests so we catch platform-specific bugs in the
+        # git2 / tree-sitter code paths without quadruple-linting.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Verify toolchain
+        run: |
+          cargo --version
+          rustc --version
+          rustup show active-toolchain
+
+      - name: cargo fmt
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --locked
+
+  shellcheck:
+    name: shellcheck plugin hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck plugin/hooks/*.sh
+
+  yamllint:
+    name: yamllint workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run yamllint
+        run: |
+          pip install --quiet 'yamllint==1.35.1'
+          yamllint -d '{extends: default, rules: {line-length: disable, truthy: {check-keys: false}, document-start: disable}}' \
+            .github/workflows
+
+  sextant:
+    name: sextant grade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `sextant grade` (no --diff) needs a real commit history; fetch a
+          # bit more than the default 1 so any merge-base lookups still work.
+          fetch-depth: 50
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Install sextant
+        run: |
+          cargo install --locked \
+            --git https://github.com/KyleBastien/sextant-mcp \
+            --tag v0.1.15 \
+            --bin sextant \
+            sextant-cli
+      - name: Grade workspace
+        run: sextant grade --no-llm --fail-on warn

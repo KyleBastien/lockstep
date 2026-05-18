@@ -1,0 +1,29 @@
+{
+  "name": "lockstep",
+  "version": "0.1.0",
+  "description": "JS→TS migration syntax-equivalence checker. Verifies that .ts files on HEAD are behavior-preserving rewrites of .js files on the default branch. Surfaces findings to the agent so it self-corrects mid-migration.",
+  "author": {
+    "name": "Kyle Bastien"
+  },
+  "homepage": "https://github.com/KyleBastien/lockstep",
+  "license": "MIT",
+  "mcpServers": {
+    "lockstep": {
+      "command": "lockstep-mcp",
+      "args": []
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-edit-verify.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,65 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lockstep-core",
+    "crates/lockstep-config",
+    "crates/lockstep-pairing",
+    "crates/lockstep-strip",
+    "crates/lockstep-normalize",
+    "crates/lockstep-compare",
+    "crates/lockstep-engine",
+    "crates/lockstep-cli",
+    "crates/lockstep-mcp",
+]
+default-members = ["crates/lockstep-cli", "crates/lockstep-mcp"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+rust-version = "1.75"
+repository = "https://github.com/KyleBastien/lockstep"
+
+# Hybrid workspace+package: the root carries a placeholder `[package]` block
+# solely so release-please's rust strategy can find a manifest to bump.
+# `publish = false` keeps it off crates.io. Real functionality lives in
+# `crates/lockstep-*`; the root has no `src/`.
+[package]
+name = "lockstep"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "lockstep workspace root; member crates ship the real functionality."
+publish = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[workspace.dependencies]
+lockstep-core = { path = "crates/lockstep-core", version = "0.1.0" }
+lockstep-config = { path = "crates/lockstep-config", version = "0.1.0" }
+lockstep-pairing = { path = "crates/lockstep-pairing", version = "0.1.0" }
+lockstep-strip = { path = "crates/lockstep-strip", version = "0.1.0" }
+lockstep-normalize = { path = "crates/lockstep-normalize", version = "0.1.0" }
+lockstep-compare = { path = "crates/lockstep-compare", version = "0.1.0" }
+lockstep-engine = { path = "crates/lockstep-engine", version = "0.1.0" }
+
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+globset = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+git2 = { version = "0.19", default-features = false }
+tree-sitter = "0.22"
+tree-sitter-typescript = "0.21"
+tree-sitter-javascript = "0.21"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

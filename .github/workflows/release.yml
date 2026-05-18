@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v0.1.0). Must already exist.'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.os }}-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: x86_64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            ext: tar.gz
+          - os: linux
+            arch: aarch64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            ext: tar.gz
+          # Intel-arch macOS dropped: `macos-13` is retired from the
+          # GitHub-hosted free pool; current Intel labels are paid larger
+          # runners. Apple is fully ARM; Intel users get the aarch64 build
+          # under Rosetta 2 transparently.
+          - os: macos
+            arch: aarch64
+            target: aarch64-apple-darwin
+            runner: macos-14
+            ext: tar.gz
+          - os: windows
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            ext: zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Install cross (linux musl only)
+        if: matrix.os == 'linux'
+        shell: bash
+        run: cargo install cross --locked --version 0.2.5
+
+      - name: Build (cross, linux)
+        if: matrix.os == 'linux'
+        shell: bash
+        run: cross build --release --locked --target ${{ matrix.target }} --bin lockstep --bin lockstep-mcp
+
+      - name: Build (native)
+        if: matrix.os != 'linux'
+        shell: bash
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin lockstep --bin lockstep-mcp
+
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.tag.outputs.version }}"
+          os=${{ matrix.os }}
+          arch=${{ matrix.arch }}
+          target=${{ matrix.target }}
+          ext=${{ matrix.ext }}
+          stage="lockstep-${version}-${os}-${arch}"
+          mkdir -p "$stage"
+
+          src_dir="target/${target}/release"
+          if [ "$os" = "windows" ]; then
+            cp "$src_dir/lockstep.exe" "$src_dir/lockstep-mcp.exe" "$stage/"
+          else
+            cp "$src_dir/lockstep" "$src_dir/lockstep-mcp" "$stage/"
+          fi
+          cp README.md LICENSE "$stage/"
+
+          asset="${stage}.${ext}"
+          if [ "$ext" = "zip" ]; then
+            7z a -tzip "$asset" "$stage" >/dev/null
+          else
+            tar -czf "$asset" "$stage"
+          fi
+
+          # Per-asset SHA256 for the consolidated SHA256SUMS file the
+          # release job assembles. Windows Git Bash ships sha256sum but
+          # not shasum; macOS ships shasum but not sha256sum. Prefer
+          # sha256sum, fall back to shasum -a 256 for macOS.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$asset" > "${asset}.sha256"
+          else
+            shasum -a 256 "$asset" > "${asset}.sha256"
+          fi
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lockstep-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            ${{ steps.package.outputs.asset }}
+            ${{ steps.package.outputs.asset }}.sha256
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Build SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          cat *.sha256 > SHA256SUMS
+          rm -f *.sha256
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: |
+            dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

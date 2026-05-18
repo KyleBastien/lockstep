@@ -1,0 +1,25 @@
+[package]
+name = "lockstep-pairing"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "git2-backed file-pair discovery between HEAD and the default branch."
+
+[dependencies]
+lockstep-core = { workspace = true }
+lockstep-config = { workspace = true }
+git2 = { workspace = true }
+thiserror = { workspace = true }
+globset = { workspace = true }
+
+[dependencies.tempfile]
+version = "3"
+optional = true
+
+[features]
+default = []
+test-fixtures = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile = "3"
