@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "lockstep",
+  "version": "1.0.0",
+  "description": "lockstep — JS→TS migration syntax-equivalence checker. Verifies that .ts files on HEAD are behavior-preserving rewrites of .js files on the default branch.",
+  "owner": {
+    "name": "Kyle Bastien"
+  },
+  "plugins": [
+    {
+      "name": "lockstep",
+      "description": "JS→TS migration syntax-equivalence checker. Strips TS-only constructs and structurally compares the result to the JS baseline on the default branch. Surfaces findings to the agent so it self-corrects mid-migration.",
+      "source": "./plugin",
+      "category": "development"
+    }
+  ]
+}
