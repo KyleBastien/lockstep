@@ -2,7 +2,8 @@
 //!
 //! Pairing predicate (per user-confirmed plan decision):
 //!   (a) HEAD path `src/foo.ts` ↔ default-branch path `src/foo.js`/.jsx/.mjs/.cjs.
-//!   (b) Same HEAD path on default branch when its blob contains `@ts-ignore`.
+//!   (b) Same HEAD path on default branch when its blob contains a TS
+//!       suppression marker (`@ts-ignore` or `@ts-nocheck`).
 //!
 //! Files not matching either are skipped — they were authored fresh as TS and
 //! have no JS counterpart to compare against.
@@ -21,9 +22,12 @@ use crate::git::{
 pub enum PairKind {
     /// Base file is a `.js`/`.jsx`/`.mjs`/`.cjs` at the matching stem.
     JsCounterpart,
-    /// Base file is the same `.ts`/`.tsx` path containing `@ts-ignore`.
-    TsWithTsIgnore,
+    /// Base file is the same `.ts`/`.tsx` path containing a TS suppression
+    /// marker (`@ts-ignore` or `@ts-nocheck`).
+    TsWithSuppression,
 }
+
+const SUPPRESSION_MARKERS: &[&str] = &["@ts-ignore", "@ts-nocheck"];
 
 #[derive(Debug, Clone)]
 pub struct FilePair {
@@ -88,14 +92,15 @@ fn try_pair(
         }
     }
 
-    // (b) Same TS path on the base branch with @ts-ignore.
-    if path_exists_in_tree(base_tree, rel) && blob_contains(repo, base_tree, rel, "@ts-ignore")? {
+    // (b) Same TS path on the base branch with a TS suppression marker
+    //     (@ts-ignore or @ts-nocheck).
+    if path_exists_in_tree(base_tree, rel) && blob_has_suppression(repo, base_tree, rel)? {
         return Ok(Some(FilePair {
             head_path: rel.to_path_buf(),
             head_abs_path: head_abs,
             base_path: rel.to_path_buf(),
             base_ref_tree: tree_oid,
-            kind: PairKind::TsWithTsIgnore,
+            kind: PairKind::TsWithSuppression,
         }));
     }
 
@@ -103,6 +108,19 @@ fn try_pair(
 }
 
 const JS_EXTENSIONS: &[&str] = &["js", "jsx", "mjs", "cjs"];
+
+fn blob_has_suppression(
+    repo: &Repository,
+    base_tree: &Tree,
+    rel: &Path,
+) -> Result<bool, RepoError> {
+    for marker in SUPPRESSION_MARKERS {
+        if blob_contains(repo, base_tree, rel, marker)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 
 fn is_ts_extension(path: &Path) -> bool {
     matches!(
@@ -175,6 +193,39 @@ mod tests {
             .unwrap();
             assert_eq!(pairs.len(), 1);
             assert_eq!(pairs[0].kind, PairKind::JsCounterpart);
+            assert_eq!(pairs[0].head_path, PathBuf::from("src/x.ts"));
+        }
+
+        fn discover_pairs_with_base_marker(base_src: &str) -> Vec<FilePair> {
+            use crate::test_fixtures::{make_committed_repo, write};
+            let tmp = TempDir::new().unwrap();
+            let root = make_committed_repo(&tmp, "src/x.ts", base_src);
+            // Modify the same TS file on HEAD so it shows up as changed.
+            write(&root, "src/x.ts", "let x: number = 2;\n");
+            let repo = repo_open(&root).unwrap();
+            discover_pairs(
+                &repo,
+                "main",
+                &[],
+                &GlobSetBuilder::new().build().unwrap(),
+                &root,
+            )
+            .unwrap()
+        }
+
+        #[test]
+        fn discover_pairs_matches_ts_ignore_on_base() {
+            let pairs = discover_pairs_with_base_marker("// @ts-ignore\nlet x: number = 1;\n");
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].kind, PairKind::TsWithSuppression);
+            assert_eq!(pairs[0].head_path, PathBuf::from("src/x.ts"));
+        }
+
+        #[test]
+        fn discover_pairs_matches_ts_nocheck_on_base() {
+            let pairs = discover_pairs_with_base_marker("// @ts-nocheck\nlet x: number = 1;\n");
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].kind, PairKind::TsWithSuppression);
             assert_eq!(pairs[0].head_path, PathBuf::from("src/x.ts"));
         }
     }
