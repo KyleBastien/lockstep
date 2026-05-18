@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "git2-backed file-pair discovery between HEAD and the default branch."
+build = "build.rs"
 
 [dependencies]
 lockstep-core = { workspace = true }
