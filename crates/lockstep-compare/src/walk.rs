@@ -117,7 +117,7 @@ fn walk_children(
     head_children: Vec<Node>,
     findings: &mut Vec<Finding>,
 ) {
-    for (b, h) in base_children.into_iter().zip(head_children.into_iter()) {
+    for (b, h) in base_children.into_iter().zip(head_children) {
         walk(ctx, b, h, findings);
         if !ctx.report_all && !findings.is_empty() {
             return;
