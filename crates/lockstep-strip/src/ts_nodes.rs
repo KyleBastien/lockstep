@@ -2,20 +2,23 @@
 //!
 //! Three buckets:
 //!   * [`DROP_STATEMENT_KINDS`]  — statement-position nodes whose entire byte
-//!     range is replaced with a semicolon (e.g. `interface_declaration`).
+//!     range is replaced with whitespace (e.g. `interface_declaration`).
 //!   * [`UNWRAP_EXPRESSION_KINDS`] — wrappers whose own bytes are removed but
 //!     whose first expression child is kept (e.g. `as_expression`).
 //!   * [`DROP_CHILD_KINDS`] — children that must be removed while keeping the
 //!     parent (e.g. `type_annotation`, `accessibility_modifier`).
 
-/// Whole-statement deletions. Replaced with `;` so the surrounding statement
-/// list keeps its punctuation grammar.
+/// Whole-statement deletions. Replaced with whitespace so TS-only declarations
+/// do not leave `empty_statement` nodes in the JavaScript AST.
 pub const DROP_STATEMENT_KINDS: &[&str] = &[
     "interface_declaration",
     "type_alias_declaration",
     "ambient_declaration",
     "internal_module",
     "import_alias",
+    "function_signature",
+    "method_signature",
+    "abstract_method_signature",
 ];
 
 /// Expression wrappers. The wrapper node is replaced by its first named child.

@@ -80,6 +80,9 @@ fn check_pair(
     let opts = CompareOptions {
         path: pair.head_path.clone(),
         report_all: config.report_all_findings,
+        allow_constructor_assigned_method_equivalence: config
+            .allow_constructor_assigned_method_equivalence,
+        allow_closure_cache_field_alias: config.allow_closure_cache_field_alias,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)

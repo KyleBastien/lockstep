@@ -61,8 +61,8 @@ The tool returns a `Report` with:
 - **token_mismatch** — Same kind, but leaf tokens differ. An identifier was
   renamed or a literal value changed. Restore the original names/values.
 - **arity_mismatch** — Same kind, different number of children. An extra
-  argument, branch, or statement was inserted (or removed). Match the base
-  shape.
+  argument, branch, or statement was inserted (or removed). Reports should be
+  granular; a root-level file mismatch usually means lockstep needs a bug fix.
 - **dropped_statement** — A statement exists on one side but not the other
   after type-stripping. Restore the missing statement.
 - **stripped_ts_construct** — Head uses a TS construct (enum, constructor
@@ -82,7 +82,10 @@ These differences between base and head will **not** be flagged:
 - Quote style (`'foo'` vs `"foo"`).
 - TS-only constructs: type annotations, `as` casts, `!` assertions, generics,
   `interface` / `type` declarations, type-only imports, accessibility
-  modifiers, `readonly` / `override` / `abstract` modifiers.
+  modifiers, `readonly` / `override` / `abstract` modifiers, and overload
+  signatures.
+- Constructor-assigned functions rewritten as class methods when names,
+  params, async/generator flags, and bodies match.
 
 Anything else means the runtime behavior of HEAD diverged from the baseline.
 

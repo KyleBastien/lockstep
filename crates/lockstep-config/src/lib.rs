@@ -30,6 +30,8 @@ pub struct Config {
     pub allow_var_to_const_let: bool,
     pub allow_formatting_diff: bool,
     pub allow_enum_to_iife: bool,
+    pub allow_constructor_assigned_method_equivalence: bool,
+    pub allow_closure_cache_field_alias: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -41,7 +43,9 @@ impl Default for Config {
             allow_var_to_const_let: true,
             allow_formatting_diff: true,
             allow_enum_to_iife: false,
-            report_all_findings: false,
+            allow_constructor_assigned_method_equivalence: true,
+            allow_closure_cache_field_alias: false,
+            report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
                 "**/*.test.tsx".into(),
@@ -109,6 +113,9 @@ mod tests {
         assert_eq!(c.default_branch, "main");
         assert!(c.allow_var_to_const_let);
         assert!(!c.allow_enum_to_iife);
+        assert!(c.allow_constructor_assigned_method_equivalence);
+        assert!(!c.allow_closure_cache_field_alias);
+        assert!(c.report_all_findings);
     }
 
     #[test]
@@ -133,9 +140,9 @@ mod tests {
     }
 
     #[test]
-    fn override_report_all_flips_only_when_true() {
+    fn override_report_all_preserves_granular_default() {
         let c = Config::default().override_report_all(false);
-        assert!(!c.report_all_findings);
+        assert!(c.report_all_findings);
         let c2 = Config::default().override_report_all(true);
         assert!(c2.report_all_findings);
     }

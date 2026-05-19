@@ -10,3 +10,6 @@ description = "TypeScript-to-JavaScript source rewrite (type-strip) for lockstep
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+tree-sitter-javascript = { workspace = true }
