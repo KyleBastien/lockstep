@@ -12,10 +12,10 @@ use tree_sitter::{Node, Parser, Tree};
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
-use crate::findings::{
-    arity_mismatch, kind_mismatch, less_defensive_optional_chain, token_mismatch, unmatched_child,
-};
+use crate::nullish_widening_equivalence::is_nullish_widening_pair;
+use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
+use crate::optional_chain::handle_optional_chain;
 use crate::tokens::canonical;
 
 pub struct CompareOptions {
@@ -33,6 +33,14 @@ pub struct CompareOptions {
     /// Additionally accept `EXPR[0] || null` and bare `EXPR[0]` as equivalent
     /// base shapes for `EXPR[0] ?? null` on head.
     pub allow_array_first_element_or_null_loose: bool,
+    /// Treat `EXPR` ↔ `EXPR ?? null` (or `EXPR ?? undefined`) as equivalent at
+    /// any AST position. Directional: head must be the widener.
+    pub allow_nullish_widening: bool,
+    /// Sub-flag of [`Self::allow_nullish_widening`]: additionally accept a bare
+    /// `null` ↔ `undefined` literal swap at any position. Off by default even
+    /// when widening is on, because `=== null` / `=== undefined` are
+    /// observationally distinct.
+    pub allow_null_undefined_swap: bool,
 }
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
@@ -66,6 +74,8 @@ pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Fin
         allow_closure_cache_field_alias: opts.allow_closure_cache_field_alias,
         allow_array_first_element_or_null: opts.allow_array_first_element_or_null,
         allow_array_first_element_or_null_loose: opts.allow_array_first_element_or_null_loose,
+        allow_nullish_widening: opts.allow_nullish_widening,
+        allow_null_undefined_swap: opts.allow_null_undefined_swap,
         ignored_base_starts: Vec::new(),
         ignored_head_starts: Vec::new(),
         aliases: Vec::new(),
@@ -107,6 +117,8 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_closure_cache_field_alias: bool,
     pub(super) allow_array_first_element_or_null: bool,
     pub(super) allow_array_first_element_or_null_loose: bool,
+    pub(super) allow_nullish_widening: bool,
+    pub(super) allow_null_undefined_swap: bool,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -146,6 +158,9 @@ pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Fin
     if is_array_first_pair(ctx, base, head) {
         return;
     }
+    if is_nullish_widening_pair(ctx, base, head) {
+        return;
+    }
     if base.kind() != head.kind() {
         findings.push(kind_mismatch(ctx, base, head));
         return;
@@ -165,36 +180,33 @@ pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut
         compare_leaf(ctx, base, head, findings);
         return;
     }
-
-    if is_optional_chain_capable(base.kind()) {
-        match optional_chain_outcome(base, head) {
-            OptionalChainOutcome::LessDefensive => {
-                findings.push(less_defensive_optional_chain(ctx, base, head));
-                return;
-            }
-            OptionalChainOutcome::MoreDefensive => {
-                let base_children = comparable_children(ctx, base, Side::Base);
-                let head_children: Vec<Node> = comparable_children(ctx, head, Side::Head)
-                    .into_iter()
-                    .filter(|n| n.kind() != "optional_chain")
-                    .collect();
-                walk_collected(
-                    ctx,
-                    NodePair { base, head },
-                    ChildPair {
-                        base: base_children,
-                        head: head_children,
-                    },
-                    findings,
-                );
-                return;
-            }
-            OptionalChainOutcome::Same => {}
-        }
+    if handle_optional_chain(ctx, base, head, findings) {
+        return;
     }
-
     let base_children = comparable_children(ctx, base, Side::Base);
     let head_children = comparable_children(ctx, head, Side::Head);
+    walk_collected(
+        ctx,
+        NodePair { base, head },
+        ChildPair {
+            base: base_children,
+            head: head_children,
+        },
+        findings,
+    );
+}
+
+pub(super) fn walk_optional_chain_more_defensive(
+    ctx: &WalkCtx,
+    base: Node,
+    head: Node,
+    findings: &mut Vec<Finding>,
+) {
+    let base_children = comparable_children(ctx, base, Side::Base);
+    let head_children: Vec<Node> = comparable_children(ctx, head, Side::Head)
+        .into_iter()
+        .filter(|n| n.kind() != "optional_chain")
+        .collect();
     walk_collected(
         ctx,
         NodePair { base, head },
@@ -254,29 +266,6 @@ fn walk_collected(
         return;
     }
     walk_children(ctx, base_children, head_children, findings);
-}
-
-enum OptionalChainOutcome {
-    Same,
-    LessDefensive,
-    MoreDefensive,
-}
-
-fn is_optional_chain_capable(kind: &str) -> bool {
-    matches!(
-        kind,
-        "member_expression" | "subscript_expression" | "call_expression"
-    )
-}
-
-fn optional_chain_outcome(base: Node, head: Node) -> OptionalChainOutcome {
-    let base_opt = base.child_by_field_name("optional_chain").is_some();
-    let head_opt = head.child_by_field_name("optional_chain").is_some();
-    match (base_opt, head_opt) {
-        (true, false) => OptionalChainOutcome::LessDefensive,
-        (false, true) => OptionalChainOutcome::MoreDefensive,
-        _ => OptionalChainOutcome::Same,
-    }
 }
 
 fn walk_children(

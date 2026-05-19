@@ -1,72 +1,10 @@
-use std::path::PathBuf;
-
 use lockstep_core::Category;
 
-use crate::walk::{compare, CompareOptions};
-
-#[derive(Default)]
-struct OptsOverrides {
-    report_all: bool,
-    cache_alias: bool,
-    array_first_tier1: bool,
-    array_first_tier2: bool,
-}
-
-fn cache_alias_plus_tier1_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        cache_alias: true,
-        array_first_tier1: true,
-        ..OptsOverrides::default()
-    })
-}
-
-fn build_opts(over: OptsOverrides) -> CompareOptions {
-    CompareOptions {
-        path: PathBuf::from("test.ts"),
-        report_all: over.report_all,
-        allow_constructor_assigned_method_equivalence: true,
-        allow_closure_cache_field_alias: over.cache_alias,
-        allow_array_first_element_or_null: over.array_first_tier1,
-        allow_array_first_element_or_null_loose: over.array_first_tier2,
-    }
-}
-
-fn opts() -> CompareOptions {
-    build_opts(OptsOverrides::default())
-}
-
-fn opts_report_all() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        ..OptsOverrides::default()
-    })
-}
-
-fn tier1_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        array_first_tier1: true,
-        ..OptsOverrides::default()
-    })
-}
-
-fn tier2_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        array_first_tier1: true,
-        array_first_tier2: true,
-        ..OptsOverrides::default()
-    })
-}
-
-fn cache_alias_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        cache_alias: true,
-        ..OptsOverrides::default()
-    })
-}
+use crate::test_helpers::{
+    assert_equiv, assert_flagged, build_opts, cache_alias_opts, cache_alias_plus_tier1_opts,
+    compare_exprs, opts, opts_report_all, tier1_opts, tier2_opts, OptsOverrides,
+};
+use crate::walk::compare;
 
 #[test]
 fn identical_sources_have_no_findings() {
@@ -240,26 +178,6 @@ fn cache_alias_value_match_rejects_real_divergence() {
     assert!(!f.is_empty());
 }
 
-fn compare_exprs(
-    base_expr: &str,
-    head_expr: &str,
-    opts: &CompareOptions,
-) -> Vec<lockstep_core::Finding> {
-    let base = format!("let v = {base_expr};");
-    let head = format!("let v = {head_expr};");
-    compare(&base, &head, opts)
-}
-
-fn assert_equiv(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
-    let f = compare_exprs(base_expr, head_expr, opts);
-    assert!(f.is_empty(), "expected no findings, got: {:?}", f);
-}
-
-fn assert_flagged(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
-    let f = compare_exprs(base_expr, head_expr, opts);
-    assert!(!f.is_empty(), "expected divergence to be flagged");
-}
-
 #[test]
 fn tier1_length_check_is_gated_off_by_default() {
     assert_flagged("arr.length > 0 ? arr[0] : null", "arr[0] ?? null", &opts());
@@ -388,3 +306,4 @@ fn more_defensive_still_compares_inner_tokens() {
     assert!(!f.is_empty(), "renamed inner property should still flag");
     assert_eq!(f[0].category, Category::TokenMismatch);
 }
+

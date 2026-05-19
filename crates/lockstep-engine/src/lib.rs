@@ -85,6 +85,8 @@ fn check_pair(
         allow_closure_cache_field_alias: config.allow_closure_cache_field_alias,
         allow_array_first_element_or_null: config.allow_array_first_element_or_null,
         allow_array_first_element_or_null_loose: config.allow_array_first_element_or_null_loose,
+        allow_nullish_widening: config.allow_nullish_widening,
+        allow_null_undefined_swap: config.allow_null_undefined_swap,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
