@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.8](https://github.com/KyleBastien/lockstep/compare/v0.1.7...v0.1.8) (2026-05-19)
+
+
+### Features
+
+* **compare:** allow_nullish_widening equivalence rule ([#18](https://github.com/KyleBastien/lockstep/issues/18)) ([b4413e9](https://github.com/KyleBastien/lockstep/commit/b4413e9897b5dc6e02c7107f0126c6bea74493fc))
+
 ## [0.1.7](https://github.com/KyleBastien/lockstep/compare/v0.1.6...v0.1.7) (2026-05-19)
 
 
