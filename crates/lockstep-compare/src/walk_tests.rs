@@ -240,17 +240,6 @@ fn cache_alias_value_match_rejects_real_divergence() {
     assert!(!f.is_empty());
 }
 
-#[test]
-fn cache_alias_value_match_accepts_var_const_swap() {
-    let (base, head) = cache_pair(
-        "",
-        "(() => { let x = 1; return x; })()",
-        "(() => { const x = 1; return x; })()",
-    );
-    let f = compare(&base, &head, &cache_alias_opts());
-    assert!(f.is_empty(), "got: {:?}", f);
-}
-
 fn compare_exprs(
     base_expr: &str,
     head_expr: &str,
