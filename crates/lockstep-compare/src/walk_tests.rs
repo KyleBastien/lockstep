@@ -327,7 +327,10 @@ fn less_defensive_optional_chain_errors() {
         ("foo?.[0]", "foo[0]"),
     ] {
         let f = compare_exprs(base, head, &opts());
-        assert!(!f.is_empty(), "expected less-defensive finding for {base} → {head}");
+        assert!(
+            !f.is_empty(),
+            "expected less-defensive finding for {base} → {head}"
+        );
         assert_eq!(f[0].category, Category::ArityMismatch);
         assert!(
             f[0].message.contains("less defensive"),
