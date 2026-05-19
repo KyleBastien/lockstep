@@ -2,6 +2,7 @@
 //! `Finding`s for the first (or every) divergence.
 
 mod align;
+mod array_first_equivalence;
 mod callable_equivalence;
 mod class_equivalence;
 mod findings;

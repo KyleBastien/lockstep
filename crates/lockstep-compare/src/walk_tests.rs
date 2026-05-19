@@ -4,13 +4,59 @@ use lockstep_core::Category;
 
 use crate::walk::{compare, CompareOptions};
 
-fn opts() -> CompareOptions {
+#[derive(Default)]
+struct OptsOverrides {
+    report_all: bool,
+    cache_alias: bool,
+    array_first_tier1: bool,
+    array_first_tier2: bool,
+}
+
+fn build_opts(over: OptsOverrides) -> CompareOptions {
     CompareOptions {
         path: PathBuf::from("test.ts"),
-        report_all: false,
+        report_all: over.report_all,
         allow_constructor_assigned_method_equivalence: true,
-        allow_closure_cache_field_alias: false,
+        allow_closure_cache_field_alias: over.cache_alias,
+        allow_array_first_element_or_null: over.array_first_tier1,
+        allow_array_first_element_or_null_loose: over.array_first_tier2,
     }
+}
+
+fn opts() -> CompareOptions {
+    build_opts(OptsOverrides::default())
+}
+
+fn opts_report_all() -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        ..OptsOverrides::default()
+    })
+}
+
+fn tier1_opts() -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        array_first_tier1: true,
+        ..OptsOverrides::default()
+    })
+}
+
+fn tier2_opts() -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        array_first_tier1: true,
+        array_first_tier2: true,
+        ..OptsOverrides::default()
+    })
+}
+
+fn cache_alias_opts() -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        cache_alias: true,
+        ..OptsOverrides::default()
+    })
 }
 
 #[test]
@@ -79,28 +125,20 @@ fn changed_literal_value_flags_divergence() {
 
 #[test]
 fn report_all_returns_multiple_findings() {
-    let opts_all = CompareOptions {
-        path: PathBuf::from("x.ts"),
-        report_all: true,
-        allow_constructor_assigned_method_equivalence: true,
-        allow_closure_cache_field_alias: false,
-    };
-    let f = compare("let x = 1; let y = 2;", "let a = 1; let b = 2;", &opts_all);
+    let f = compare(
+        "let x = 1; let y = 2;",
+        "let a = 1; let b = 2;",
+        &opts_report_all(),
+    );
     assert_eq!(f.len(), 2);
 }
 
 #[test]
 fn report_all_breaks_root_arity_into_granular_findings() {
-    let opts_all = CompareOptions {
-        path: PathBuf::from("x.ts"),
-        report_all: true,
-        allow_constructor_assigned_method_equivalence: true,
-        allow_closure_cache_field_alias: false,
-    };
     let f = compare(
         "let a = 1; let c = 3;",
         "let a = 1; let b = 2; let c = 4;",
-        &opts_all,
+        &opts_report_all(),
     );
     assert!(f
         .iter()
@@ -138,12 +176,105 @@ fn cache_alias_is_config_gated() {
     let f = compare(base, head, &opts());
     assert!(!f.is_empty());
 
-    let opts_alias = CompareOptions {
-        path: PathBuf::from("x.ts"),
-        report_all: true,
-        allow_constructor_assigned_method_equivalence: true,
-        allow_closure_cache_field_alias: true,
-    };
-    let f = compare(base, head, &opts_alias);
+    let f = compare(base, head, &cache_alias_opts());
     assert!(f.is_empty(), "got: {:?}", f);
+}
+
+fn compare_exprs(base_expr: &str, head_expr: &str, opts: &CompareOptions) -> Vec<lockstep_core::Finding> {
+    let base = format!("let v = {base_expr};");
+    let head = format!("let v = {head_expr};");
+    compare(&base, &head, opts)
+}
+
+fn assert_equiv(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
+    let f = compare_exprs(base_expr, head_expr, opts);
+    assert!(f.is_empty(), "expected no findings, got: {:?}", f);
+}
+
+fn assert_flagged(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
+    let f = compare_exprs(base_expr, head_expr, opts);
+    assert!(!f.is_empty(), "expected divergence to be flagged");
+}
+
+#[test]
+fn tier1_length_check_is_gated_off_by_default() {
+    assert_flagged("arr.length > 0 ? arr[0] : null", "arr[0] ?? null", &opts());
+}
+
+#[test]
+fn tier1_length_check_passes_with_flag_on() {
+    assert_equiv(
+        "arr.length > 0 ? arr[0] : null",
+        "arr[0] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_and_length_check_passes_with_flag_on() {
+    assert_equiv(
+        "arr && arr.length > 0 ? arr[0] : null",
+        "arr[0] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_optional_chain_length_check_passes_with_flag_on() {
+    assert_equiv(
+        "res?.data?.length > 0 ? res?.data[0] : null",
+        "res?.data?.[0] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_optional_mismatch_still_flags() {
+    assert_flagged(
+        "arr.length > 0 ? arr[0] : null",
+        "arr?.[0] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_different_expr_still_flags() {
+    assert_flagged(
+        "arr.length > 0 ? brr[0] : null",
+        "arr[0] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_non_zero_index_still_flags() {
+    assert_flagged(
+        "arr.length > 0 ? arr[1] : null",
+        "arr[1] ?? null",
+        &tier1_opts(),
+    );
+}
+
+#[test]
+fn tier1_does_not_accept_or_null_base() {
+    assert_flagged("arr[0] || null", "arr[0] ?? null", &tier1_opts());
+}
+
+#[test]
+fn tier2_or_null_passes_with_loose_flag() {
+    assert_equiv("arr[0] || null", "arr[0] ?? null", &tier2_opts());
+}
+
+#[test]
+fn tier2_bare_subscript_passes_with_loose_flag() {
+    assert_equiv("res?.data[0]", "res?.data[0] ?? null", &tier2_opts());
+}
+
+#[test]
+fn tier1_wrong_fallback_does_not_trigger() {
+    assert_flagged(
+        "arr.length > 0 ? arr[0] : null",
+        "arr[0] ?? undefined",
+        &tier1_opts(),
+    );
 }

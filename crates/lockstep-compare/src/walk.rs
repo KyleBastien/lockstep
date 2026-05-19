@@ -10,6 +10,7 @@ use lockstep_core::{Category, Finding};
 use tree_sitter::{Node, Parser, Tree};
 
 use crate::align::align_children;
+use crate::array_first_equivalence::is_array_first_pair;
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
@@ -24,6 +25,12 @@ pub struct CompareOptions {
     pub allow_constructor_assigned_method_equivalence: bool,
     /// Treat matching constructor-local caches and instance fields as aliases.
     pub allow_closure_cache_field_alias: bool,
+    /// Treat condition-guarded "first element or null" ternaries as equivalent
+    /// to `EXPR[0] ?? null` (see `array_first_equivalence`).
+    pub allow_array_first_element_or_null: bool,
+    /// Additionally accept `EXPR[0] || null` and bare `EXPR[0]` as equivalent
+    /// base shapes for `EXPR[0] ?? null` on head.
+    pub allow_array_first_element_or_null_loose: bool,
 }
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
@@ -55,6 +62,8 @@ pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Fin
         allow_constructor_assigned_method_equivalence: opts
             .allow_constructor_assigned_method_equivalence,
         allow_closure_cache_field_alias: opts.allow_closure_cache_field_alias,
+        allow_array_first_element_or_null: opts.allow_array_first_element_or_null,
+        allow_array_first_element_or_null_loose: opts.allow_array_first_element_or_null_loose,
         ignored_base_starts: Vec::new(),
         ignored_head_starts: Vec::new(),
         aliases: Vec::new(),
@@ -94,6 +103,8 @@ pub(super) struct WalkCtx<'a> {
     pub(super) report_all: bool,
     allow_constructor_assigned_method_equivalence: bool,
     pub(super) allow_closure_cache_field_alias: bool,
+    pub(super) allow_array_first_element_or_null: bool,
+    pub(super) allow_array_first_element_or_null_loose: bool,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -116,6 +127,9 @@ pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Fin
         return;
     }
     if is_cache_alias_pair(ctx, base, head) {
+        return;
+    }
+    if is_array_first_pair(ctx, base, head) {
         return;
     }
     if base.kind() != head.kind() {
