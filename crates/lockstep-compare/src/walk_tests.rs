@@ -307,68 +307,34 @@ fn tier1_wrong_fallback_does_not_trigger() {
 }
 
 #[test]
-fn more_defensive_member_chain_is_allowed() {
-    assert_equiv("foo.bar.baz", "foo?.bar?.baz", &opts());
+fn more_defensive_optional_chain_is_allowed() {
+    for (base, head) in [
+        ("foo.bar.baz", "foo?.bar?.baz"),
+        ("foo.bar", "foo?.bar"),
+        ("foo.bar()", "foo?.bar()"),
+        ("foo[0]", "foo?.[0]"),
+    ] {
+        assert_equiv(base, head, &opts());
+    }
 }
 
 #[test]
-fn more_defensive_single_step_member_is_allowed() {
-    assert_equiv("foo.bar", "foo?.bar", &opts());
-}
-
-#[test]
-fn more_defensive_call_chain_is_allowed() {
-    assert_equiv("foo.bar()", "foo?.bar()", &opts());
-}
-
-#[test]
-fn more_defensive_subscript_is_allowed() {
-    assert_equiv("foo[0]", "foo?.[0]", &opts());
-}
-
-#[test]
-fn less_defensive_member_chain_errors() {
-    let f = compare_exprs("foo?.bar?.baz", "foo.bar.baz", &opts());
-    assert!(!f.is_empty());
-    assert_eq!(f[0].category, Category::ArityMismatch);
-    assert!(
-        f[0].message.contains("less defensive"),
-        "got message: {}",
-        f[0].message
-    );
-}
-
-#[test]
-fn less_defensive_single_step_member_errors() {
-    let f = compare_exprs("foo?.bar", "foo.bar", &opts());
-    assert!(!f.is_empty());
-    assert!(
-        f[0].message.contains("less defensive"),
-        "got message: {}",
-        f[0].message
-    );
-}
-
-#[test]
-fn less_defensive_call_errors() {
-    let f = compare_exprs("foo?.bar()", "foo.bar()", &opts());
-    assert!(!f.is_empty());
-    assert!(
-        f[0].message.contains("less defensive"),
-        "got message: {}",
-        f[0].message
-    );
-}
-
-#[test]
-fn less_defensive_subscript_errors() {
-    let f = compare_exprs("foo?.[0]", "foo[0]", &opts());
-    assert!(!f.is_empty());
-    assert!(
-        f[0].message.contains("less defensive"),
-        "got message: {}",
-        f[0].message
-    );
+fn less_defensive_optional_chain_errors() {
+    for (base, head) in [
+        ("foo?.bar?.baz", "foo.bar.baz"),
+        ("foo?.bar", "foo.bar"),
+        ("foo?.bar()", "foo.bar()"),
+        ("foo?.[0]", "foo[0]"),
+    ] {
+        let f = compare_exprs(base, head, &opts());
+        assert!(!f.is_empty(), "expected less-defensive finding for {base} → {head}");
+        assert_eq!(f[0].category, Category::ArityMismatch);
+        assert!(
+            f[0].message.contains("less defensive"),
+            "got message: {}",
+            f[0].message
+        );
+    }
 }
 
 #[test]

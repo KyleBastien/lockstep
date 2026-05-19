@@ -166,7 +166,15 @@ pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut
                     .into_iter()
                     .filter(|n| n.kind() != "optional_chain")
                     .collect();
-                walk_collected(ctx, base, head, base_children, head_children, findings);
+                walk_collected(
+                    ctx,
+                    NodePair { base, head },
+                    ChildPair {
+                        base: base_children,
+                        head: head_children,
+                    },
+                    findings,
+                );
                 return;
             }
             OptionalChainOutcome::Same => {}
@@ -175,17 +183,38 @@ pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut
 
     let base_children = comparable_children(ctx, base, Side::Base);
     let head_children = comparable_children(ctx, head, Side::Head);
-    walk_collected(ctx, base, head, base_children, head_children, findings);
+    walk_collected(
+        ctx,
+        NodePair { base, head },
+        ChildPair {
+            base: base_children,
+            head: head_children,
+        },
+        findings,
+    );
+}
+
+pub(super) struct NodePair<'a> {
+    pub(super) base: Node<'a>,
+    pub(super) head: Node<'a>,
+}
+
+struct ChildPair<'a> {
+    base: Vec<Node<'a>>,
+    head: Vec<Node<'a>>,
 }
 
 fn walk_collected(
     ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    base_children: Vec<Node>,
-    head_children: Vec<Node>,
+    nodes: NodePair,
+    children: ChildPair,
     findings: &mut Vec<Finding>,
 ) {
+    let NodePair { base, head } = nodes;
+    let ChildPair {
+        base: base_children,
+        head: head_children,
+    } = children;
     if base_children.len() != head_children.len() {
         if !walk_aligned_arity_mismatch(
             ctx,
