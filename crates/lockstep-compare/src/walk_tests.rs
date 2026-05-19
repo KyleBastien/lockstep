@@ -224,7 +224,11 @@ fn cache_pair(params: &str, base_init: &str, head_init: &str) -> (String, String
 
 #[test]
 fn cache_alias_value_match_picks_up_array_first_equivalence() {
-    let (base, head) = cache_pair("data", "data.length > 0 ? data[0] : null", "data[0] ?? null");
+    let (base, head) = cache_pair(
+        "data",
+        "data.length > 0 ? data[0] : null",
+        "data[0] ?? null",
+    );
     let f = compare(&base, &head, &cache_alias_plus_tier1_opts());
     assert!(f.is_empty(), "got: {:?}", f);
 }
