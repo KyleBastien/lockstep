@@ -289,6 +289,8 @@ allow_constructor_assigned_method_equivalence = true
 allow_closure_cache_field_alias = false
 allow_array_first_element_or_null = false
 allow_array_first_element_or_null_loose = false
+allow_nullish_widening = false
+allow_null_undefined_swap = false
 report_all_findings = true
 ignore = [
     "**/*.test.ts",

@@ -34,6 +34,8 @@ pub struct Config {
     pub allow_closure_cache_field_alias: bool,
     pub allow_array_first_element_or_null: bool,
     pub allow_array_first_element_or_null_loose: bool,
+    pub allow_nullish_widening: bool,
+    pub allow_null_undefined_swap: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -49,6 +51,8 @@ impl Default for Config {
             allow_closure_cache_field_alias: false,
             allow_array_first_element_or_null: false,
             allow_array_first_element_or_null_loose: false,
+            allow_nullish_widening: false,
+            allow_null_undefined_swap: false,
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -121,6 +125,8 @@ mod tests {
         assert!(!c.allow_closure_cache_field_alias);
         assert!(!c.allow_array_first_element_or_null);
         assert!(!c.allow_array_first_element_or_null_loose);
+        assert!(!c.allow_nullish_widening);
+        assert!(!c.allow_null_undefined_swap);
         assert!(c.report_all_findings);
     }
 

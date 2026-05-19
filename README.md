@@ -140,6 +140,8 @@ allow_formatting_diff = true
 allow_enum_to_iife = false
 allow_constructor_assigned_method_equivalence = true
 allow_closure_cache_field_alias = false
+allow_nullish_widening = false       # accept EXPR ↔ EXPR ?? null|undefined
+allow_null_undefined_swap = false    # sub-flag: also accept bare null ↔ undefined
 report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
@@ -149,6 +151,8 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 - Constructor parameter properties (`constructor(public x: T)`) emit a "desugar required" finding rather than being mechanically synthesized.
 - Enums are rejected by default; opt in via `allow_enum_to_iife` after manual review.
 - Closure cache variables converted to instance fields are reported by default; opt in via `allow_closure_cache_field_alias = true` after manual review.
+- Nullish widening (`EXPR` rewritten as `EXPR ?? null` or `EXPR ?? undefined` to satisfy a `T | null` field/return type) is reported by default; opt in via `allow_nullish_widening = true`. The rule is directional — head must be the widener.
+- Bare `null` ↔ `undefined` literal swaps are gated separately on `allow_null_undefined_swap = true` (which itself requires `allow_nullish_widening`), because `=== null` / `=== undefined` are observationally distinct.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
 
