@@ -306,4 +306,3 @@ fn more_defensive_still_compares_inner_tokens() {
     assert!(!f.is_empty(), "renamed inner property should still flag");
     assert_eq!(f[0].category, Category::TokenMismatch);
 }
-

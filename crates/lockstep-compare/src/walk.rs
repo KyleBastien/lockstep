@@ -12,9 +12,9 @@ use tree_sitter::{Node, Parser, Tree};
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
-use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
+use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::optional_chain::handle_optional_chain;
 use crate::tokens::canonical;
 

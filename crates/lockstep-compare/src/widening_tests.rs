@@ -66,6 +66,11 @@ fn nullish_widening_scratch_context_isolation() {
         "let a = x ?? null; let b = q;",
         &widening_opts(),
     );
-    assert_eq!(f.len(), 1, "expected only the real divergence, got: {:?}", f);
+    assert_eq!(
+        f.len(),
+        1,
+        "expected only the real divergence, got: {:?}",
+        f
+    );
     assert_eq!(f[0].category, Category::TokenMismatch);
 }

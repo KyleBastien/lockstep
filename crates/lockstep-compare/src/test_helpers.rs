@@ -107,7 +107,11 @@ pub(crate) fn widening_plus_cache_alias_opts() -> CompareOptions {
     })
 }
 
-pub(crate) fn compare_exprs(base_expr: &str, head_expr: &str, opts: &CompareOptions) -> Vec<Finding> {
+pub(crate) fn compare_exprs(
+    base_expr: &str,
+    head_expr: &str,
+    opts: &CompareOptions,
+) -> Vec<Finding> {
     let base = format!("let v = {base_expr};");
     let head = format!("let v = {head_expr};");
     compare(&base, &head, opts)
