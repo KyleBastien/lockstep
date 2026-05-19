@@ -180,7 +180,11 @@ fn cache_alias_is_config_gated() {
     assert!(f.is_empty(), "got: {:?}", f);
 }
 
-fn compare_exprs(base_expr: &str, head_expr: &str, opts: &CompareOptions) -> Vec<lockstep_core::Finding> {
+fn compare_exprs(
+    base_expr: &str,
+    head_expr: &str,
+    opts: &CompareOptions,
+) -> Vec<lockstep_core::Finding> {
     let base = format!("let v = {base_expr};");
     let head = format!("let v = {head_expr};");
     compare(&base, &head, opts)
