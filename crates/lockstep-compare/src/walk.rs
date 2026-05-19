@@ -12,7 +12,9 @@ use tree_sitter::{Node, Parser, Tree};
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
-use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
+use crate::findings::{
+    arity_mismatch, kind_mismatch, less_defensive_optional_chain, token_mismatch, unmatched_child,
+};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
 use crate::tokens::canonical;
 
@@ -152,8 +154,38 @@ pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut
         return;
     }
 
+    if is_optional_chain_capable(base.kind()) {
+        match optional_chain_outcome(base, head) {
+            OptionalChainOutcome::LessDefensive => {
+                findings.push(less_defensive_optional_chain(ctx, base, head));
+                return;
+            }
+            OptionalChainOutcome::MoreDefensive => {
+                let base_children = comparable_children(ctx, base, Side::Base);
+                let head_children: Vec<Node> = comparable_children(ctx, head, Side::Head)
+                    .into_iter()
+                    .filter(|n| n.kind() != "optional_chain")
+                    .collect();
+                walk_collected(ctx, base, head, base_children, head_children, findings);
+                return;
+            }
+            OptionalChainOutcome::Same => {}
+        }
+    }
+
     let base_children = comparable_children(ctx, base, Side::Base);
     let head_children = comparable_children(ctx, head, Side::Head);
+    walk_collected(ctx, base, head, base_children, head_children, findings);
+}
+
+fn walk_collected(
+    ctx: &WalkCtx,
+    base: Node,
+    head: Node,
+    base_children: Vec<Node>,
+    head_children: Vec<Node>,
+    findings: &mut Vec<Finding>,
+) {
     if base_children.len() != head_children.len() {
         if !walk_aligned_arity_mismatch(
             ctx,
@@ -181,6 +213,29 @@ pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut
         return;
     }
     walk_children(ctx, base_children, head_children, findings);
+}
+
+enum OptionalChainOutcome {
+    Same,
+    LessDefensive,
+    MoreDefensive,
+}
+
+fn is_optional_chain_capable(kind: &str) -> bool {
+    matches!(
+        kind,
+        "member_expression" | "subscript_expression" | "call_expression"
+    )
+}
+
+fn optional_chain_outcome(base: Node, head: Node) -> OptionalChainOutcome {
+    let base_opt = base.child_by_field_name("optional_chain").is_some();
+    let head_opt = head.child_by_field_name("optional_chain").is_some();
+    match (base_opt, head_opt) {
+        (true, false) => OptionalChainOutcome::LessDefensive,
+        (false, true) => OptionalChainOutcome::MoreDefensive,
+        _ => OptionalChainOutcome::Same,
+    }
 }
 
 fn walk_children(

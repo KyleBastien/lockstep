@@ -305,3 +305,80 @@ fn tier1_wrong_fallback_does_not_trigger() {
         &tier1_opts(),
     );
 }
+
+#[test]
+fn more_defensive_member_chain_is_allowed() {
+    assert_equiv("foo.bar.baz", "foo?.bar?.baz", &opts());
+}
+
+#[test]
+fn more_defensive_single_step_member_is_allowed() {
+    assert_equiv("foo.bar", "foo?.bar", &opts());
+}
+
+#[test]
+fn more_defensive_call_chain_is_allowed() {
+    assert_equiv("foo.bar()", "foo?.bar()", &opts());
+}
+
+#[test]
+fn more_defensive_subscript_is_allowed() {
+    assert_equiv("foo[0]", "foo?.[0]", &opts());
+}
+
+#[test]
+fn less_defensive_member_chain_errors() {
+    let f = compare_exprs("foo?.bar?.baz", "foo.bar.baz", &opts());
+    assert!(!f.is_empty());
+    assert_eq!(f[0].category, Category::ArityMismatch);
+    assert!(
+        f[0].message.contains("less defensive"),
+        "got message: {}",
+        f[0].message
+    );
+}
+
+#[test]
+fn less_defensive_single_step_member_errors() {
+    let f = compare_exprs("foo?.bar", "foo.bar", &opts());
+    assert!(!f.is_empty());
+    assert!(
+        f[0].message.contains("less defensive"),
+        "got message: {}",
+        f[0].message
+    );
+}
+
+#[test]
+fn less_defensive_call_errors() {
+    let f = compare_exprs("foo?.bar()", "foo.bar()", &opts());
+    assert!(!f.is_empty());
+    assert!(
+        f[0].message.contains("less defensive"),
+        "got message: {}",
+        f[0].message
+    );
+}
+
+#[test]
+fn less_defensive_subscript_errors() {
+    let f = compare_exprs("foo?.[0]", "foo[0]", &opts());
+    assert!(!f.is_empty());
+    assert!(
+        f[0].message.contains("less defensive"),
+        "got message: {}",
+        f[0].message
+    );
+}
+
+#[test]
+fn matching_optional_chains_walk_normally() {
+    assert_equiv("foo?.bar?.baz", "foo?.bar?.baz", &opts());
+}
+
+#[test]
+fn more_defensive_still_compares_inner_tokens() {
+    let f = compare_exprs("foo.bar.baz", "foo?.qux?.baz", &opts());
+    assert!(!f.is_empty(), "renamed inner property should still flag");
+    assert_eq!(f[0].category, Category::TokenMismatch);
+}
