@@ -184,10 +184,11 @@ fn cache_aliases(
     ignored_head_starts: &mut Vec<usize>,
 ) -> Vec<CacheAlias> {
     let base_vars = constructor_cache_declarations(base, ctx.base_src);
-    let head_fields = class_fields(head, ctx.head_src);
+    let mut head_caches = class_fields(head, ctx.head_src);
+    head_caches.extend(head_constructor_cache_assignments(head, ctx.head_src));
     let mut aliases = Vec::new();
     for base_var in base_vars {
-        if let Some(field) = head_fields.iter().find(|field| {
+        if let Some(field) = head_caches.iter().find(|field| {
             strip_leading_underscore(&field.name) == base_var.name
                 && normalized_source(field.value, ctx.head_src)
                     == normalized_source(base_var.value, ctx.base_src)
@@ -263,6 +264,40 @@ fn class_fields<'a>(class_body: Node<'a>, src: &str) -> Vec<ClassField<'a>> {
             })
         })
         .collect()
+}
+
+fn head_constructor_cache_assignments<'a>(
+    class_body: Node<'a>,
+    src: &str,
+) -> Vec<ClassField<'a>> {
+    let Some(body) = constructor_body(class_body, src) else {
+        return Vec::new();
+    };
+    raw_comparable_children(body)
+        .into_iter()
+        .filter_map(|statement| cache_assignment_as_field(statement, src))
+        .collect()
+}
+
+fn cache_assignment_as_field<'a>(statement: Node<'a>, src: &str) -> Option<ClassField<'a>> {
+    if statement.kind() != "expression_statement" {
+        return None;
+    }
+    let assignment = first_named_child(statement)?;
+    if assignment.kind() != "assignment_expression" {
+        return None;
+    }
+    let left = assignment.child_by_field_name("left")?;
+    let right = unwrap_expression(assignment.child_by_field_name("right")?);
+    if matches!(right.kind(), "function_expression" | "arrow_function") {
+        return None;
+    }
+    let name = this_property_name(left, src)?;
+    Some(ClassField {
+        name,
+        value: right,
+        node: statement,
+    })
 }
 
 fn method_name(node: Node, src: &str) -> Option<String> {

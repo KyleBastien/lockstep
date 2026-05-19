@@ -180,6 +180,30 @@ fn cache_alias_is_config_gated() {
     assert!(f.is_empty(), "got: {:?}", f);
 }
 
+#[test]
+fn cache_alias_matches_constructor_assigned_head_cache() {
+    let base = "class C { constructor(cacheInvoice) { const invoiceCache = cacheInvoice; this.getInvoice = function(id) { return invoiceCache[id]; }; } }";
+    let head = "class C { constructor(cacheInvoice) { this._invoiceCache = cacheInvoice; } getInvoice(id) { return this._invoiceCache[id]; } }";
+    let f = compare(base, head, &cache_alias_opts());
+    assert!(f.is_empty(), "got: {:?}", f);
+}
+
+#[test]
+fn cache_alias_constructor_assigned_head_cache_is_config_gated() {
+    let base = "class C { constructor(cacheInvoice) { const invoiceCache = cacheInvoice; this.getInvoice = function(id) { return invoiceCache[id]; }; } }";
+    let head = "class C { constructor(cacheInvoice) { this._invoiceCache = cacheInvoice; } getInvoice(id) { return this._invoiceCache[id]; } }";
+    let f = compare(base, head, &opts());
+    assert!(!f.is_empty());
+}
+
+#[test]
+fn cache_alias_constructor_assignment_value_must_match() {
+    let base = "class C { constructor(cacheInvoice) { const invoiceCache = cacheInvoice; this.getInvoice = function(id) { return invoiceCache[id]; }; } }";
+    let head = "class C { constructor(cacheInvoice) { this._invoiceCache = cacheInvoice ?? null; } getInvoice(id) { return this._invoiceCache[id]; } }";
+    let f = compare(base, head, &cache_alias_opts());
+    assert!(!f.is_empty(), "value mismatch should still flag");
+}
+
 fn compare_exprs(
     base_expr: &str,
     head_expr: &str,
