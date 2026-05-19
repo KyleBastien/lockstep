@@ -130,16 +130,45 @@ struct ClassMethod<'a> {
 }
 
 fn constructor_assignments<'a>(class_body: Node<'a>, src: &str) -> Vec<ConstructorAssignment<'a>> {
+    constructor_this_assignments(class_body, src, true)
+        .into_iter()
+        .map(|p| ConstructorAssignment {
+            name: p.name,
+            statement: p.statement,
+            value: p.right,
+        })
+        .collect()
+}
+
+fn constructor_this_assignments<'a>(
+    class_body: Node<'a>,
+    src: &str,
+    callable: bool,
+) -> Vec<ThisPropertyAssignment<'a>> {
     let Some(body) = constructor_body(class_body, src) else {
         return Vec::new();
     };
     raw_comparable_children(body)
         .into_iter()
-        .filter_map(|statement| constructor_assignment(statement, src))
+        .filter_map(|statement| parse_this_property_assignment(statement, src))
+        .filter(|p| is_callable(p.right.kind()) == callable)
         .collect()
 }
 
-fn constructor_assignment<'a>(statement: Node<'a>, src: &str) -> Option<ConstructorAssignment<'a>> {
+fn is_callable(kind: &str) -> bool {
+    matches!(kind, "function_expression" | "arrow_function")
+}
+
+struct ThisPropertyAssignment<'a> {
+    name: String,
+    right: Node<'a>,
+    statement: Node<'a>,
+}
+
+fn parse_this_property_assignment<'a>(
+    statement: Node<'a>,
+    src: &str,
+) -> Option<ThisPropertyAssignment<'a>> {
     if statement.kind() != "expression_statement" {
         return None;
     }
@@ -150,13 +179,10 @@ fn constructor_assignment<'a>(statement: Node<'a>, src: &str) -> Option<Construc
     let left = assignment.child_by_field_name("left")?;
     let right = unwrap_expression(assignment.child_by_field_name("right")?);
     let name = this_property_name(left, src)?;
-    if !matches!(right.kind(), "function_expression" | "arrow_function") {
-        return None;
-    }
-    Some(ConstructorAssignment {
+    Some(ThisPropertyAssignment {
         name,
+        right,
         statement,
-        value: right,
     })
 }
 
@@ -266,38 +292,15 @@ fn class_fields<'a>(class_body: Node<'a>, src: &str) -> Vec<ClassField<'a>> {
         .collect()
 }
 
-fn head_constructor_cache_assignments<'a>(
-    class_body: Node<'a>,
-    src: &str,
-) -> Vec<ClassField<'a>> {
-    let Some(body) = constructor_body(class_body, src) else {
-        return Vec::new();
-    };
-    raw_comparable_children(body)
+fn head_constructor_cache_assignments<'a>(class_body: Node<'a>, src: &str) -> Vec<ClassField<'a>> {
+    constructor_this_assignments(class_body, src, false)
         .into_iter()
-        .filter_map(|statement| cache_assignment_as_field(statement, src))
+        .map(|p| ClassField {
+            name: p.name,
+            value: p.right,
+            node: p.statement,
+        })
         .collect()
-}
-
-fn cache_assignment_as_field<'a>(statement: Node<'a>, src: &str) -> Option<ClassField<'a>> {
-    if statement.kind() != "expression_statement" {
-        return None;
-    }
-    let assignment = first_named_child(statement)?;
-    if assignment.kind() != "assignment_expression" {
-        return None;
-    }
-    let left = assignment.child_by_field_name("left")?;
-    let right = unwrap_expression(assignment.child_by_field_name("right")?);
-    if matches!(right.kind(), "function_expression" | "arrow_function") {
-        return None;
-    }
-    let name = this_property_name(left, src)?;
-    Some(ClassField {
-        name,
-        value: right,
-        node: statement,
-    })
 }
 
 fn method_name(node: Node, src: &str) -> Option<String> {
