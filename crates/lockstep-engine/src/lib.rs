@@ -83,6 +83,8 @@ fn check_pair(
         allow_constructor_assigned_method_equivalence: config
             .allow_constructor_assigned_method_equivalence,
         allow_closure_cache_field_alias: config.allow_closure_cache_field_alias,
+        allow_array_first_element_or_null: config.allow_array_first_element_or_null,
+        allow_array_first_element_or_null_loose: config.allow_array_first_element_or_null_loose,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
