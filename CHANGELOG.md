@@ -6,6 +6,14 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.2](https://github.com/KyleBastien/lockstep/compare/v0.1.1...v0.1.2) (2026-05-19)
+
+
+### Features
+
+* **pairing:** match [@ts-nocheck](https://github.com/ts-nocheck) alongside [@ts-ignore](https://github.com/ts-ignore) on base ([#5](https://github.com/KyleBastien/lockstep/issues/5)) ([044a646](https://github.com/KyleBastien/lockstep/commit/044a646dbde1d45e440c9eaade9f00a5b8398616))
+* **plugin:** add Claude Code marketplace.json manifest ([#3](https://github.com/KyleBastien/lockstep/issues/3)) ([6957c8c](https://github.com/KyleBastien/lockstep/commit/6957c8cbc69fe2dda21cfc5e6e0457b9f008215a))
+
 ## [0.1.1](https://github.com/KyleBastien/lockstep/compare/v0.1.0...v0.1.1) (2026-05-18)
 
 
