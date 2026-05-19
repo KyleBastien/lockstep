@@ -1,8 +1,8 @@
 use lockstep_core::Category;
 
 use crate::test_helpers::{
-    assert_equiv, assert_flagged, build_opts, cache_alias_opts, cache_alias_plus_tier1_opts,
-    compare_exprs, opts, opts_report_all, tier1_opts, tier2_opts, OptsOverrides,
+    assert_equiv, assert_flagged, cache_alias_opts, cache_alias_plus_tier1_opts, compare_exprs,
+    opts, opts_report_all, tier1_opts, tier2_opts,
 };
 use crate::walk::compare;
 
