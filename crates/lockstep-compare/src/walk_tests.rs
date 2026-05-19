@@ -180,6 +180,29 @@ fn cache_alias_is_config_gated() {
     assert!(f.is_empty(), "got: {:?}", f);
 }
 
+const CTOR_CACHE_BASE: &str = "class C { constructor(cacheInvoice) { const invoiceCache = cacheInvoice; this.getInvoice = function(id) { return invoiceCache[id]; }; } }";
+const CTOR_CACHE_HEAD: &str = "class C { constructor(cacheInvoice) { this._invoiceCache = cacheInvoice; } getInvoice(id) { return this._invoiceCache[id]; } }";
+const CTOR_CACHE_HEAD_WIDENED: &str = "class C { constructor(cacheInvoice) { this._invoiceCache = cacheInvoice ?? null; } getInvoice(id) { return this._invoiceCache[id]; } }";
+
+#[test]
+fn cache_alias_constructor_assigned_head_cache_is_config_gated() {
+    let f = compare(CTOR_CACHE_BASE, CTOR_CACHE_HEAD, &opts());
+    assert!(!f.is_empty());
+
+    let f = compare(CTOR_CACHE_BASE, CTOR_CACHE_HEAD, &cache_alias_opts());
+    assert!(f.is_empty(), "got: {:?}", f);
+}
+
+#[test]
+fn cache_alias_constructor_assignment_value_must_match() {
+    let f = compare(
+        CTOR_CACHE_BASE,
+        CTOR_CACHE_HEAD_WIDENED,
+        &cache_alias_opts(),
+    );
+    assert!(!f.is_empty(), "value mismatch should still flag");
+}
+
 fn compare_exprs(
     base_expr: &str,
     head_expr: &str,
