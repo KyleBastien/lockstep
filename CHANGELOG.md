@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.4](https://github.com/KyleBastien/lockstep/compare/v0.1.3...v0.1.4) (2026-05-19)
+
+
+### Features
+
+* **compare:** allow_array_first_element_or_null equivalence ([#9](https://github.com/KyleBastien/lockstep/issues/9)) ([7d0d8c9](https://github.com/KyleBastien/lockstep/commit/7d0d8c9eed4fe1b65b836c74844b5fc39843d6a2))
+
 ## [0.1.3](https://github.com/KyleBastien/lockstep/compare/v0.1.2...v0.1.3) (2026-05-19)
 
 
