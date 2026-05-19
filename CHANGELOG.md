@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.3](https://github.com/KyleBastien/lockstep/compare/v0.1.2...v0.1.3) (2026-05-19)
+
+
+### Bug Fixes
+
+* **ci:** require conventional PR titles ([#7](https://github.com/KyleBastien/lockstep/issues/7)) ([dac1b4f](https://github.com/KyleBastien/lockstep/commit/dac1b4f9d0a3d03108bc331185630bd1fdfdac56))
+
 ## [0.1.2](https://github.com/KyleBastien/lockstep/compare/v0.1.1...v0.1.2) (2026-05-19)
 
 
