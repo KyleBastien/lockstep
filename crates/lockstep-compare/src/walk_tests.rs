@@ -12,6 +12,15 @@ struct OptsOverrides {
     array_first_tier2: bool,
 }
 
+fn cache_alias_plus_tier1_opts() -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        cache_alias: true,
+        array_first_tier1: true,
+        ..OptsOverrides::default()
+    })
+}
+
 fn build_opts(over: OptsOverrides) -> CompareOptions {
     CompareOptions {
         path: PathBuf::from("test.ts"),
@@ -201,6 +210,34 @@ fn cache_alias_constructor_assignment_value_must_match() {
         &cache_alias_opts(),
     );
     assert!(!f.is_empty(), "value mismatch should still flag");
+}
+
+fn cache_pair(params: &str, base_init: &str, head_init: &str) -> (String, String) {
+    let base = format!(
+        "class C {{ constructor({params}) {{ const cache = {base_init}; this.get = function() {{ return cache; }}; }} }}"
+    );
+    let head = format!(
+        "class C {{ constructor({params}) {{ this._cache = {head_init}; }} get() {{ return this._cache; }} }}"
+    );
+    (base, head)
+}
+
+#[test]
+fn cache_alias_value_match_picks_up_array_first_equivalence() {
+    let (base, head) = cache_pair(
+        "data",
+        "data.length > 0 ? data[0] : null",
+        "data[0] ?? null",
+    );
+    let f = compare(&base, &head, &cache_alias_plus_tier1_opts());
+    assert!(f.is_empty(), "got: {:?}", f);
+}
+
+#[test]
+fn cache_alias_value_match_rejects_real_divergence() {
+    let (base, head) = cache_pair("a, b", "a", "b");
+    let f = compare(&base, &head, &cache_alias_opts());
+    assert!(!f.is_empty());
 }
 
 fn compare_exprs(

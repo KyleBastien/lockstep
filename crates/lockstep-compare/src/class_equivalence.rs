@@ -6,7 +6,7 @@ use crate::node_utils::{
     direct_children_of_kind, first_named_child, node_text, raw_comparable_children, statement_block,
 };
 
-use crate::walk::{walk_regular, CacheAlias, WalkCtx};
+use crate::walk::{walk, walk_regular, CacheAlias, WalkCtx};
 
 pub(super) fn walk_class_body(
     ctx: &WalkCtx,
@@ -216,8 +216,7 @@ fn cache_aliases(
     for base_var in base_vars {
         if let Some(field) = head_caches.iter().find(|field| {
             strip_leading_underscore(&field.name) == base_var.name
-                && normalized_source(field.value, ctx.head_src)
-                    == normalized_source(base_var.value, ctx.base_src)
+                && values_equivalent(ctx, base_var.value, field.value)
         }) {
             aliases.push(CacheAlias {
                 base_name: base_var.name.clone(),
@@ -333,6 +332,22 @@ fn unwrap_expression(mut node: Node) -> Node {
 
 fn normalized_source(node: Node, src: &str) -> String {
     crate::node_utils::compact_node_text(node, src)
+}
+
+/// Whether two cache-value subtrees are equivalent.
+///
+/// Fast path: byte-equal after whitespace strip. Otherwise re-enter the
+/// standard walker with a scratch context so the value pair gets every
+/// equivalence rule the rest of the diff already applies, without polluting
+/// the outer pass's aliases / ignored-byte tables.
+fn values_equivalent(ctx: &WalkCtx, base_value: Node, head_value: Node) -> bool {
+    if normalized_source(base_value, ctx.base_src) == normalized_source(head_value, ctx.head_src) {
+        return true;
+    }
+    let scratch_ctx = ctx.scratch();
+    let mut scratch_findings = Vec::new();
+    walk(&scratch_ctx, base_value, head_value, &mut scratch_findings);
+    scratch_findings.is_empty()
 }
 
 fn strip_leading_underscore(name: &str) -> &str {

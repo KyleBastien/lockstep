@@ -112,6 +112,18 @@ pub(super) struct WalkCtx<'a> {
     pub(super) aliases: Vec<CacheAlias>,
 }
 
+impl<'a> WalkCtx<'a> {
+    /// Clone with accumulator state cleared. Config flags and sources preserved.
+    /// For sub-comparisons whose findings should not feed back into the outer pass.
+    pub(super) fn scratch(&self) -> Self {
+        let mut s = self.clone();
+        s.ignored_base_starts.clear();
+        s.ignored_head_starts.clear();
+        s.aliases.clear();
+        s
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CacheAlias {
     pub(super) base_name: String,
