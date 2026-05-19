@@ -6,6 +6,14 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.7](https://github.com/KyleBastien/lockstep/compare/v0.1.6...v0.1.7) (2026-05-19)
+
+
+### Features
+
+* **compare:** enforce optional-chain defensiveness direction ([#15](https://github.com/KyleBastien/lockstep/issues/15)) ([2cc9d86](https://github.com/KyleBastien/lockstep/commit/2cc9d867778a6f4b187b8c72d7c1eacf00d6cde0))
+* **compare:** recursive AST match for cache-alias values ([#17](https://github.com/KyleBastien/lockstep/issues/17)) ([d42217b](https://github.com/KyleBastien/lockstep/commit/d42217b47f6d3665c1d5d6122d3749250f8d8f19))
+
 ## [0.1.6](https://github.com/KyleBastien/lockstep/compare/v0.1.5...v0.1.6) (2026-05-19)
 
 
