@@ -78,6 +78,16 @@ pub(super) fn arity_mismatch(
     make_finding(ctx, base, head, Category::ArityMismatch, msg)
 }
 
+pub(super) fn less_defensive_optional_chain(ctx: &WalkCtx, base: Node, head: Node) -> Finding {
+    let msg = format!(
+        "head removed `?.` optional chaining on `{}` (base:{} head:{}) — head is less defensive than base",
+        base.kind(),
+        line_of(base),
+        line_of(head),
+    );
+    make_finding(ctx, base, head, Category::ArityMismatch, msg)
+}
+
 pub(super) fn token_mismatch(
     ctx: &WalkCtx,
     base: Node,

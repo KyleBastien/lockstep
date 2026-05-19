@@ -305,3 +305,49 @@ fn tier1_wrong_fallback_does_not_trigger() {
         &tier1_opts(),
     );
 }
+
+#[test]
+fn more_defensive_optional_chain_is_allowed() {
+    for (base, head) in [
+        ("foo.bar.baz", "foo?.bar?.baz"),
+        ("foo.bar", "foo?.bar"),
+        ("foo.bar()", "foo?.bar()"),
+        ("foo[0]", "foo?.[0]"),
+    ] {
+        assert_equiv(base, head, &opts());
+    }
+}
+
+#[test]
+fn less_defensive_optional_chain_errors() {
+    for (base, head) in [
+        ("foo?.bar?.baz", "foo.bar.baz"),
+        ("foo?.bar", "foo.bar"),
+        ("foo?.bar()", "foo.bar()"),
+        ("foo?.[0]", "foo[0]"),
+    ] {
+        let f = compare_exprs(base, head, &opts());
+        assert!(
+            !f.is_empty(),
+            "expected less-defensive finding for {base} → {head}"
+        );
+        assert_eq!(f[0].category, Category::ArityMismatch);
+        assert!(
+            f[0].message.contains("less defensive"),
+            "got message: {}",
+            f[0].message
+        );
+    }
+}
+
+#[test]
+fn matching_optional_chains_walk_normally() {
+    assert_equiv("foo?.bar?.baz", "foo?.bar?.baz", &opts());
+}
+
+#[test]
+fn more_defensive_still_compares_inner_tokens() {
+    let f = compare_exprs("foo.bar.baz", "foo?.qux?.baz", &opts());
+    assert!(!f.is_empty(), "renamed inner property should still flag");
+    assert_eq!(f[0].category, Category::TokenMismatch);
+}
