@@ -31,6 +31,12 @@ pub const UNWRAP_EXPRESSION_KINDS: &[&str] = &[
 ];
 
 /// Children removed in place (preserve parent, splice the child's bytes out).
+///
+/// `optional_parameter` is **not** included: dropping its whole byte range
+/// also deletes the parameter binding (the `ident` / pattern), leaving an
+/// empty parameter slot. Instead, the parser visits its children — the
+/// `type_annotation` and trailing `?` token are removed individually, and
+/// the binding plus any default value are preserved.
 pub const DROP_CHILD_KINDS: &[&str] = &[
     "type_annotation",
     "type_arguments",
@@ -43,7 +49,6 @@ pub const DROP_CHILD_KINDS: &[&str] = &[
     "override_modifier",
     "abstract_modifier",
     "declare",
-    "optional_parameter",
     "predefined_type",
 ];
 
