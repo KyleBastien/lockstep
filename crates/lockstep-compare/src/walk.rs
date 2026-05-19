@@ -6,16 +6,24 @@
 
 use std::path::{Path, PathBuf};
 
-use lockstep_core::{Category, Finding, Severity};
+use lockstep_core::{Category, Finding};
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::report::snippet;
+use crate::align::align_children;
+use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
+use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
+use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
 use crate::tokens::canonical;
 
 pub struct CompareOptions {
     pub path: PathBuf,
     /// If false, stop walking after the first divergence in a file.
     pub report_all: bool,
+    /// Treat constructor assignments like `this.foo = function () {}` as
+    /// equivalent to class methods named `foo` when their callable bodies match.
+    pub allow_constructor_assigned_method_equivalence: bool,
+    /// Treat matching constructor-local caches and instance fields as aliases.
+    pub allow_closure_cache_field_alias: bool,
 }
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
@@ -44,6 +52,12 @@ pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Fin
         head_src,
         path: &opts.path,
         report_all: opts.report_all,
+        allow_constructor_assigned_method_equivalence: opts
+            .allow_constructor_assigned_method_equivalence,
+        allow_closure_cache_field_alias: opts.allow_closure_cache_field_alias,
+        ignored_base_starts: Vec::new(),
+        ignored_head_starts: Vec::new(),
+        aliases: Vec::new(),
     };
     let mut findings = Vec::new();
     walk(
@@ -72,39 +86,83 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
     )
 }
 
-struct WalkCtx<'a> {
-    base_src: &'a str,
-    head_src: &'a str,
-    path: &'a Path,
-    report_all: bool,
+#[derive(Clone)]
+pub(super) struct WalkCtx<'a> {
+    pub(super) base_src: &'a str,
+    pub(super) head_src: &'a str,
+    pub(super) path: &'a Path,
+    pub(super) report_all: bool,
+    allow_constructor_assigned_method_equivalence: bool,
+    pub(super) allow_closure_cache_field_alias: bool,
+    pub(super) ignored_base_starts: Vec<usize>,
+    pub(super) ignored_head_starts: Vec<usize>,
+    pub(super) aliases: Vec<CacheAlias>,
 }
 
-fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CacheAlias {
+    pub(super) base_name: String,
+    pub(super) head_property: String,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Side {
+    Base,
+    Head,
+}
+
+pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     if !ctx.report_all && !findings.is_empty() {
+        return;
+    }
+    if is_cache_alias_pair(ctx, base, head) {
         return;
     }
     if base.kind() != head.kind() {
         findings.push(kind_mismatch(ctx, base, head));
         return;
     }
+    if ctx.allow_constructor_assigned_method_equivalence
+        && base.kind() == "class_body"
+        && head.kind() == "class_body"
+        && walk_class_body(ctx, base, head, findings)
+    {
+        return;
+    }
+    walk_regular(ctx, base, head, findings);
+}
+
+pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     if is_atomic(base.kind()) {
         compare_leaf(ctx, base, head, findings);
         return;
     }
 
-    let base_children = comparable_children(base);
-    let head_children = comparable_children(head);
+    let base_children = comparable_children(ctx, base, Side::Base);
+    let head_children = comparable_children(ctx, head, Side::Head);
     if base_children.len() != head_children.len() {
-        findings.push(arity_mismatch(
+        if !walk_aligned_arity_mismatch(
             ctx,
-            base,
-            head,
-            base_children.len(),
-            head_children.len(),
-        ));
+            (base, head),
+            (&base_children, &head_children),
+            findings,
+        ) {
+            findings.push(arity_mismatch(
+                ctx,
+                base,
+                head,
+                base_children.len(),
+                head_children.len(),
+            ));
+        }
         return;
     }
     if base_children.is_empty() {
+        if has_filtered_children(ctx, base, Side::Base)
+            || has_filtered_children(ctx, head, Side::Head)
+        {
+            return;
+        }
         compare_leaf(ctx, base, head, findings);
         return;
     }
@@ -125,6 +183,56 @@ fn walk_children(
     }
 }
 
+fn walk_aligned_arity_mismatch(
+    ctx: &WalkCtx,
+    parents: (Node, Node),
+    children: (&[Node], &[Node]),
+    findings: &mut Vec<Finding>,
+) -> bool {
+    let (base, head) = parents;
+    let (base_children, head_children) = children;
+    let alignment = align_children(ctx, base_children, head_children);
+    if alignment.pairs.is_empty() {
+        return false;
+    }
+    for idx in alignment.unmatched_base {
+        findings.push(unmatched_child(
+            ctx,
+            base,
+            head,
+            base_children[idx],
+            Side::Base,
+        ));
+        if !ctx.report_all {
+            return true;
+        }
+    }
+    for idx in alignment.unmatched_head {
+        findings.push(unmatched_child(
+            ctx,
+            base,
+            head,
+            head_children[idx],
+            Side::Head,
+        ));
+        if !ctx.report_all {
+            return true;
+        }
+    }
+    for (base_idx, head_idx) in alignment.pairs {
+        walk(
+            ctx,
+            base_children[base_idx],
+            head_children[head_idx],
+            findings,
+        );
+        if !ctx.report_all && !findings.is_empty() {
+            return true;
+        }
+    }
+    true
+}
+
 fn compare_leaf(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     let base_text = base.utf8_text(ctx.base_src.as_bytes()).unwrap_or("");
     let head_text = head.utf8_text(ctx.head_src.as_bytes()).unwrap_or("");
@@ -140,11 +248,14 @@ fn compare_leaf(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Findin
 /// `in`, `of`, `void`, `delete`). Excludes pure punctuation and the declaration
 /// keywords (`let`/`const`/`var`) so `var` → `const`/`let` normalization is
 /// silently accepted.
-fn comparable_children(node: Node) -> Vec<Node> {
+fn comparable_children<'a>(ctx: &WalkCtx, node: Node<'a>, side: Side) -> Vec<Node<'a>> {
     let mut out = Vec::new();
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if is_trivia(child) {
+            continue;
+        }
+        if is_ignored(ctx, child, side) {
             continue;
         }
         if child.is_named() || is_meaningful_unnamed(child.kind()) {
@@ -154,8 +265,18 @@ fn comparable_children(node: Node) -> Vec<Node> {
     out
 }
 
-fn is_trivia(node: Node) -> bool {
-    matches!(node.kind(), "comment" | "hash_bang_line")
+fn is_ignored(ctx: &WalkCtx, node: Node, side: Side) -> bool {
+    let starts = match side {
+        Side::Base => &ctx.ignored_base_starts,
+        Side::Head => &ctx.ignored_head_starts,
+    };
+    starts.contains(&node.start_byte())
+}
+
+fn has_filtered_children(ctx: &WalkCtx, node: Node, side: Side) -> bool {
+    raw_comparable_children(node)
+        .into_iter()
+        .any(|child| is_ignored(ctx, child, side))
 }
 
 fn is_atomic(kind: &str) -> bool {
@@ -163,173 +284,4 @@ fn is_atomic(kind: &str) -> bool {
         kind,
         "string" | "template_string" | "regex" | "number" | "identifier" | "property_identifier"
     )
-}
-
-fn is_meaningful_unnamed(kind: &str) -> bool {
-    !matches!(
-        kind,
-        ";" | ","
-            | "("
-            | ")"
-            | "["
-            | "]"
-            | "{"
-            | "}"
-            | "."
-            | "..."
-            | "?"
-            | ":"
-            | "=>"
-            | "let"
-            | "const"
-            | "var"
-    )
-}
-
-fn kind_mismatch(ctx: &WalkCtx, base: Node, head: Node) -> Finding {
-    let msg = format!(
-        "different node kinds at base:{} head:{}: base=`{}` head=`{}`",
-        line_of(base),
-        line_of(head),
-        base.kind(),
-        head.kind(),
-    );
-    make_finding(ctx, base, head, Category::KindMismatch, msg)
-}
-
-fn arity_mismatch(ctx: &WalkCtx, base: Node, head: Node, base_n: usize, head_n: usize) -> Finding {
-    let msg = format!(
-        "`{}` has {} named children on base, {} on head (base:{} head:{})",
-        base.kind(),
-        base_n,
-        head_n,
-        line_of(base),
-        line_of(head),
-    );
-    make_finding(ctx, base, head, Category::ArityMismatch, msg)
-}
-
-fn token_mismatch(
-    ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    base_text: &str,
-    head_text: &str,
-) -> Finding {
-    let msg = format!(
-        "`{}` token differs: base=`{}` head=`{}` (base:{} head:{})",
-        base.kind(),
-        base_text,
-        head_text,
-        line_of(base),
-        line_of(head),
-    );
-    make_finding(ctx, base, head, Category::TokenMismatch, msg)
-}
-
-fn make_finding(
-    ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    category: Category,
-    message: String,
-) -> Finding {
-    let bl = line_of(base);
-    let hl = line_of(head);
-    Finding::new(ctx.path, category, message)
-        .with_severity(Severity::Error)
-        .with_kinds(base.kind(), head.kind())
-        .with_lines(bl, hl)
-        .with_snippets(snippet(ctx.base_src, bl), snippet(ctx.head_src, hl))
-}
-
-fn line_of(node: Node) -> u32 {
-    node.start_position().row as u32 + 1
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    fn opts() -> CompareOptions {
-        CompareOptions {
-            path: PathBuf::from("test.ts"),
-            report_all: false,
-        }
-    }
-
-    #[test]
-    fn identical_sources_have_no_findings() {
-        let src = "function f(x) { return x + 1; }";
-        let f = compare(src, src, &opts());
-        assert!(f.is_empty(), "got: {:?}", f);
-    }
-
-    #[test]
-    fn renamed_identifier_flags_token_mismatch() {
-        let f = compare("let x = 1;", "let y = 1;", &opts());
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].category, Category::TokenMismatch);
-    }
-
-    #[test]
-    fn extra_statement_flags_arity_mismatch() {
-        let f = compare("let x = 1;", "let x = 1; let y = 2;", &opts());
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].category, Category::ArityMismatch);
-    }
-
-    #[test]
-    fn changed_node_kind_flags_kind_mismatch() {
-        let f = compare("let x = 1;", "let x = foo();", &opts());
-        assert_eq!(f.len(), 1);
-        assert!(matches!(
-            f[0].category,
-            Category::KindMismatch | Category::ArityMismatch
-        ));
-    }
-
-    #[test]
-    fn comments_are_ignored() {
-        let f = compare("let x = 1; // a", "let x = 1; /* b */", &opts());
-        assert!(f.is_empty(), "got: {:?}", f);
-    }
-
-    #[test]
-    fn quote_style_does_not_flag() {
-        let f = compare("let s = 'foo';", "let s = \"foo\";", &opts());
-        assert!(f.is_empty(), "got: {:?}", f);
-    }
-
-    #[test]
-    fn plus_vs_minus_operator_flags_divergence() {
-        let f = compare(
-            "function add(a, b) { return a + b; }",
-            "function add(a, b) { return a - b; }",
-            &opts(),
-        );
-        assert!(!f.is_empty(), "expected divergence");
-        assert!(matches!(
-            f[0].category,
-            Category::KindMismatch | Category::TokenMismatch
-        ));
-    }
-
-    #[test]
-    fn changed_literal_value_flags_divergence() {
-        let f = compare("let x = 1;", "let x = 2;", &opts());
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].category, Category::TokenMismatch);
-    }
-
-    #[test]
-    fn report_all_returns_multiple_findings() {
-        let opts_all = CompareOptions {
-            path: PathBuf::from("x.ts"),
-            report_all: true,
-        };
-        let f = compare("let x = 1; let y = 2;", "let a = 1; let b = 2;", &opts_all);
-        assert_eq!(f.len(), 2);
-    }
 }

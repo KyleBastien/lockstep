@@ -67,6 +67,17 @@ impl Edit {
             replacement: Cow::Borrowed(""),
         }
     }
+    pub(crate) fn replace_with_whitespace(src: &str, start: usize, end: usize) -> Self {
+        let replacement = src[start..end]
+            .chars()
+            .map(|c| if matches!(c, '\n' | '\r') { c } else { ' ' })
+            .collect::<String>();
+        Self {
+            start,
+            end,
+            replacement: Cow::Owned(replacement),
+        }
+    }
     pub(crate) fn replace_with_semi(start: usize, end: usize) -> Self {
         Self {
             start,
@@ -127,7 +138,7 @@ fn classify(node: Node, src: &str, edits: &mut Vec<Edit>, rejections: &mut Vec<R
     if handle_import_export(node, src, edits) {
         return;
     }
-    if handle_drop_statement(node, edits) {
+    if handle_drop_statement(node, src, edits) {
         return;
     }
     if handle_unwrap_expression(node, edits) {
@@ -171,7 +182,11 @@ fn handle_import_export(node: Node, src: &str, edits: &mut Vec<Edit>) -> bool {
         return false;
     }
     if is_type_only_statement(node, src) {
-        edits.push(Edit::replace_with_semi(node.start_byte(), node.end_byte()));
+        edits.push(Edit::replace_with_whitespace(
+            src,
+            node.start_byte(),
+            node.end_byte(),
+        ));
         return true;
     }
     for (s, e) in type_specifier_ranges(node, src) {
@@ -180,11 +195,15 @@ fn handle_import_export(node: Node, src: &str, edits: &mut Vec<Edit>) -> bool {
     false
 }
 
-fn handle_drop_statement(node: Node, edits: &mut Vec<Edit>) -> bool {
+fn handle_drop_statement(node: Node, src: &str, edits: &mut Vec<Edit>) -> bool {
     if !ts_nodes::is_drop_statement(node.kind()) {
         return false;
     }
-    edits.push(Edit::replace_with_semi(node.start_byte(), node.end_byte()));
+    edits.push(Edit::replace_with_whitespace(
+        src,
+        node.start_byte(),
+        node.end_byte(),
+    ));
     true
 }
 

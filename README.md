@@ -58,14 +58,17 @@ For each `(base, head)` pair:
 3. Normalize both sides: rewrite `var` → `let`, drop trailing commas.
 4. Re-parse both as JavaScript.
 5. Dual-walk the two trees: compare `kind()`, named-child arity, leaf-token text (with string/number canonicalization), skipping comments.
-6. Emit the first divergence with ±2-line snippets (or every divergence with `--report-all-findings`).
+6. Emit granular divergences with ±2-line snippets, aligning nearby unchanged children so one root arity mismatch does not hide the actionable edits.
 
 ## What's silently allowed
 
 - `var` → `const` / `let`.
 - Whitespace / formatting / trailing commas.
 - Quote style (`'foo'` vs `"foo"`).
-- All TS-only syntax (the whole point of the migration).
+- All TS-only syntax (the whole point of the migration), including overload
+  signatures, type-only imports/exports, interfaces, and type aliases.
+- Constructor-assigned functions rewritten as class methods when names, params,
+  async/generator flags, and bodies match.
 
 ## What's flagged
 
@@ -135,7 +138,9 @@ default_branch = "main"            # CLI: --base
 allow_var_to_const_let = true
 allow_formatting_diff = true
 allow_enum_to_iife = false
-report_all_findings = false
+allow_constructor_assigned_method_equivalence = true
+allow_closure_cache_field_alias = false
+report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
 
@@ -143,6 +148,7 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 
 - Constructor parameter properties (`constructor(public x: T)`) emit a "desugar required" finding rather than being mechanically synthesized.
 - Enums are rejected by default; opt in via `allow_enum_to_iife` after manual review.
+- Closure cache variables converted to instance fields are reported by default; opt in via `allow_closure_cache_field_alias = true` after manual review.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
 

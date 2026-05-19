@@ -37,7 +37,7 @@ enum Cmd {
         /// Severity at which the CLI exits non-zero.
         #[arg(long, value_enum, default_value_t = FailOn::Error)]
         fail_on: FailOn,
-        /// Don't stop at the first divergence per file; report every mismatch.
+        /// Force granular reporting even if config disables it.
         #[arg(long)]
         report_all_findings: bool,
         /// Dump the normalized base/head source for each pair under
@@ -285,7 +285,9 @@ default_branch = "main"
 allow_var_to_const_let = true
 allow_formatting_diff = true
 allow_enum_to_iife = false
-report_all_findings = false
+allow_constructor_assigned_method_equivalence = true
+allow_closure_cache_field_alias = false
+report_all_findings = true
 ignore = [
     "**/*.test.ts",
     "**/*.test.tsx",

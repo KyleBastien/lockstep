@@ -1,6 +1,7 @@
 //! Peer test file for `elide.rs`.
 
 use crate::elide::{strip, TsFlavor};
+use tree_sitter::Parser;
 
 fn s(input: &str) -> String {
     strip(input, TsFlavor::Ts).unwrap().output
@@ -31,6 +32,30 @@ fn assert_case(case: &StripCase) {
     }
 }
 
+fn assert_no_empty_statement_after_js_parse(input: &str) {
+    let out = s(input);
+    let mut parser = Parser::new();
+    parser
+        .set_language(&tree_sitter_javascript::language())
+        .unwrap();
+    let tree = parser.parse(&out, None).unwrap();
+    assert!(
+        !contains_kind(tree.root_node(), "empty_statement"),
+        "unexpected empty_statement after strip: {out:?}"
+    );
+}
+
+fn contains_kind(node: tree_sitter::Node, kind: &str) -> bool {
+    if node.kind() == kind {
+        return true;
+    }
+    let mut cursor = node.walk();
+    let found = node
+        .children(&mut cursor)
+        .any(|child| contains_kind(child, kind));
+    found
+}
+
 #[test]
 fn drops_type_annotation_on_let() {
     assert_case(&(
@@ -49,6 +74,21 @@ fn drops_interface_declaration() {
         &["let a = 1"],
         &["interface"],
     ));
+}
+
+#[test]
+fn drops_ts_only_statements_without_empty_statement_nodes() {
+    for input in [
+        "import type { Foo } from 'x';\nlet a = 1;",
+        "import { type Foo } from 'x';\nlet a = 1;",
+        "export type { Foo } from 'x';\nlet a = 1;",
+        "interface Foo { x: number }\nlet a = 1;",
+        "type Foo = number;\nlet a = 1;",
+        "function f(x: string): string;\nfunction f(x) { return x; }",
+        "class C { m(x: string): string; m(x) { return x; } }",
+    ] {
+        assert_no_empty_statement_after_js_parse(input);
+    }
 }
 
 #[test]

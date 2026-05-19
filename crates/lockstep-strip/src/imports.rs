@@ -22,6 +22,9 @@ pub fn is_type_only_statement(node: Node, src: &str) -> bool {
     if kind != "import_statement" && kind != "export_statement" {
         return false;
     }
+    if all_specifiers_are_type_only(node, src) {
+        return true;
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let text = child.utf8_text(src.as_bytes()).unwrap_or("");
@@ -41,6 +44,22 @@ pub fn is_type_only_statement(node: Node, src: &str) -> bool {
         }
     }
     false
+}
+
+fn all_specifiers_are_type_only(node: Node, src: &str) -> bool {
+    let mut total = 0usize;
+    let mut type_only = 0usize;
+    let mut cursor = node.walk();
+    for child in walk_descendants(node, &mut cursor) {
+        if !is_specifier(child) {
+            continue;
+        }
+        total += 1;
+        if has_leading_type_token(child, src.as_bytes()) {
+            type_only += 1;
+        }
+    }
+    total > 0 && total == type_only
 }
 
 /// Returns the byte ranges (start, end) of individual `import_specifier` /
@@ -122,40 +141,51 @@ mod tests {
         parser.parse(src, None).unwrap()
     }
 
-    #[test]
-    fn is_type_only_statement_detects_pure_type_imports() {
+    fn with_first_statement<R>(src: &str, f: impl FnOnce(Node, &str) -> R) -> R {
         let mut parser = Parser::new();
-        let src = "import type { Foo } from 'x';";
         let tree = parse_first_statement(&mut parser, src);
         let stmt = tree.root_node().named_child(0).unwrap();
-        assert!(is_type_only_statement(stmt, src));
+        f(stmt, src)
+    }
+
+    fn is_type_only_src(src: &str) -> bool {
+        with_first_statement(src, is_type_only_statement)
+    }
+
+    fn type_specifier_range_count(src: &str) -> usize {
+        with_first_statement(src, |stmt, src| type_specifier_ranges(stmt, src).len())
+    }
+
+    #[test]
+    fn is_type_only_statement_detects_pure_type_imports() {
+        assert!(is_type_only_src("import type { Foo } from 'x';"));
     }
 
     #[test]
     fn is_type_only_statement_rejects_value_imports() {
-        let mut parser = Parser::new();
-        let src = "import { foo } from 'x';";
-        let tree = parse_first_statement(&mut parser, src);
-        let stmt = tree.root_node().named_child(0).unwrap();
-        assert!(!is_type_only_statement(stmt, src));
+        assert!(!is_type_only_src("import { foo } from 'x';"));
     }
 
     #[test]
     fn type_specifier_ranges_finds_mixed_type_imports() {
-        let mut parser = Parser::new();
         let src = "import { type Foo, bar } from 'x';";
-        let tree = parse_first_statement(&mut parser, src);
-        let stmt = tree.root_node().named_child(0).unwrap();
-        let ranges = type_specifier_ranges(stmt, src);
-        assert_eq!(ranges.len(), 1, "expected one type-prefixed specifier");
+        assert_eq!(
+            type_specifier_range_count(src),
+            1,
+            "expected one type-prefixed specifier"
+        );
+    }
+
+    #[test]
+    fn is_type_only_statement_detects_braced_type_only_imports() {
+        assert!(is_type_only_src("import { type Foo } from 'x';"));
     }
 
     #[test]
     fn type_specifier_ranges_empty_for_value_imports() {
-        let mut parser = Parser::new();
-        let src = "import { foo, bar } from 'x';";
-        let tree = parse_first_statement(&mut parser, src);
-        let stmt = tree.root_node().named_child(0).unwrap();
-        assert!(type_specifier_ranges(stmt, src).is_empty());
+        assert_eq!(
+            type_specifier_range_count("import { foo, bar } from 'x';"),
+            0
+        );
     }
 }
