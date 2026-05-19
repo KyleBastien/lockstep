@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.6](https://github.com/KyleBastien/lockstep/compare/v0.1.5...v0.1.6) (2026-05-19)
+
+
+### Bug Fixes
+
+* **compare:** recognize constructor-assigned head caches ([#13](https://github.com/KyleBastien/lockstep/issues/13)) ([e73c45b](https://github.com/KyleBastien/lockstep/commit/e73c45b8b6ef591fee05c7280fa5bee0affadbb8))
+
 ## [0.1.5](https://github.com/KyleBastien/lockstep/compare/v0.1.4...v0.1.5) (2026-05-19)
 
 
