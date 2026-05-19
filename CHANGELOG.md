@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.5](https://github.com/KyleBastien/lockstep/compare/v0.1.4...v0.1.5) (2026-05-19)
+
+
+### Bug Fixes
+
+* **strip:** preserve binding when stripping optional parameter ([#11](https://github.com/KyleBastien/lockstep/issues/11)) ([4b6a1df](https://github.com/KyleBastien/lockstep/commit/4b6a1dfc7b28cdd69e455460e521fb9a384d8e28))
+
 ## [0.1.4](https://github.com/KyleBastien/lockstep/compare/v0.1.3...v0.1.4) (2026-05-19)
 
 
