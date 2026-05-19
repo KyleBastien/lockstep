@@ -120,7 +120,7 @@ fn prepare_pair(
 fn strip_base(blob: &str, pair: &FilePair) -> Result<(String, Vec<Rejection>), EngineError> {
     match pair.kind {
         PairKind::JsCounterpart => Ok((blob.to_string(), Vec::new())),
-        PairKind::TsWithTsIgnore => {
+        PairKind::TsWithSuppression => {
             let flavor = TsFlavor::from_extension(&pair.base_path);
             let out = strip(blob, flavor)?;
             Ok((out.output, out.rejections))

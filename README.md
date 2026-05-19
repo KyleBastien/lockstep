@@ -40,9 +40,11 @@ A file touched on HEAD is verified if EITHER:
 
 1. Its `.js` / `.jsx` / `.mjs` / `.cjs` counterpart exists at the same stem on
    the default branch (the typical migration), OR
-2. The same `.ts` / `.tsx` path exists on the default branch and contains
-   `@ts-ignore` (treat that earlier version as the JS-equivalent baseline by
-   type-stripping it too — useful for re-migrations that remove `@ts-ignore`s).
+2. The same `.ts` / `.tsx` path exists on the default branch and contains a
+   TS suppression marker (`@ts-ignore` or `@ts-nocheck`). Treat that earlier
+   version as the JS-equivalent baseline by type-stripping it too — useful
+   for re-migrations that remove `@ts-ignore`s or drop a file-level
+   `@ts-nocheck`.
 
 Files that don't match either case are skipped — they were authored fresh as TS
 and have no JS baseline.
