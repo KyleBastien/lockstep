@@ -190,6 +190,90 @@ fn unwraps_satisfies() {
 }
 
 #[test]
+fn optional_parameter_preserves_identifier_binding() {
+    assert_case(&(
+        "optional ident",
+        "function f(opts?: number) {}",
+        &["function f(opts) {}"],
+        &["?", ": number", " ,", "( ,"],
+    ));
+}
+
+#[test]
+fn optional_parameter_preserves_object_pattern_binding() {
+    assert_case(&(
+        "optional object pattern",
+        "function b({ x, y }?: T) {}",
+        &["function b({ x, y }) {}"],
+        &["?", ": T"],
+    ));
+}
+
+#[test]
+fn optional_parameter_preserves_array_pattern_binding() {
+    assert_case(&(
+        "optional array pattern",
+        "function c([a, b]?: T) {}",
+        &["function c([a, b]) {}"],
+        &["?", ": T"],
+    ));
+}
+
+#[test]
+fn optional_parameter_preserves_default_value() {
+    assert_case(&(
+        "optional with default",
+        "function d(x?: T = defaultValue) {}",
+        &["function d(x", "= defaultValue) {}"],
+        &["?", ": T"],
+    ));
+}
+
+#[test]
+fn required_parameter_with_default_still_strips() {
+    assert_case(&(
+        "required with default (control)",
+        "function e(x: T = defaultValue) {}",
+        &["function e(x", "= defaultValue) {}"],
+        &[": T"],
+    ));
+}
+
+#[test]
+fn optional_parameter_alongside_required_keeps_both_bindings() {
+    assert_case(&(
+        "mixed required + optional",
+        "function g(params: P, opts?: O): void {}",
+        &["params", "opts"],
+        &["( ,", ", ,", ": P", ": O", ": void", "?"],
+    ));
+}
+
+#[test]
+fn optional_parameter_in_method_keeps_binding() {
+    assert_case(&(
+        "method optional param",
+        "class C { getInvoice(opts?: TOpts): boolean { return true; } }",
+        &["getInvoice(opts)"],
+        &["?", ": TOpts", ": boolean"],
+    ));
+}
+
+#[test]
+fn optional_parameter_property_still_rejects() {
+    let r = strip(
+        "class C { constructor(public x?: number) {} }",
+        TsFlavor::Ts,
+    )
+    .unwrap();
+    assert!(
+        r.rejections.iter().any(|r| r.kind == "parameter_property"),
+        "expected parameter_property rejection, got: {:?}",
+        r.rejections,
+    );
+}
+
+#[test]
 fn tsflavor_from_extension_picks_tsx_only_for_tsx() {
     use std::path::Path;
     assert_eq!(TsFlavor::from_extension(Path::new("a.ts")), TsFlavor::Ts);
