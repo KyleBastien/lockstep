@@ -1,0 +1,151 @@
+//! Equivalence rule for pure type-narrowing helpers.
+//!
+//! Gated on `allow_pure_narrowing_helper`. TypeScript migrations frequently
+//! introduce small helpers like `asString` / `asNumber` / `isPlainObject`
+//! that wrap a `typeof` check around a value and return `undefined` (or
+//! `false`) on type mismatch. Use sites then look like:
+//!
+//! ```text
+//! // base
+//! const x = obj.foo;
+//! // head
+//! const x = asString(obj.foo) ?? "";
+//! ```
+//!
+//! Two mechanisms compose:
+//!
+//! 1. **Top-level declaration filter.** Head `function HELPER(...) { ... }`
+//!    declarations whose name is listed in `narrowing_helpers` are dropped
+//!    from the head program's comparable children. The base program has no
+//!    corresponding declaration, so this avoids an arity mismatch.
+//!
+//! 2. **Call-site equivalence.** A head `binary_expression` of shape
+//!    `HELPER(EXPR) ?? DEFAULT` (where `HELPER` was filtered in step 1) is
+//!    treated as equivalent to a base expression that matches `EXPR`. A
+//!    scratch sub-walk verifies the `EXPR` shape against the base node.
+//!
+//! **WARNING — observable behavior change on type mismatch.** When `EXPR`
+//! evaluates to a value of the wrong runtime type (e.g. `asString(123)`),
+//! the head substitutes `DEFAULT` while base interpolates / propagates the
+//! raw value. The two flags (`allow_pure_narrowing_helper` and a non-empty
+//! `narrowing_helpers`) are both required, and the helper name must also
+//! be declared in head — these stack to keep the rule narrowly opt-in.
+//!
+//! V1 requirements at the call site:
+//! - Helper name ∈ `narrowing_helpers` config.
+//! - Helper declaration found in head program top-level.
+//! - Call shape exactly `HELPER(EXPR) ?? DEFAULT` (binary `??` with call on
+//!   the left). Bare `HELPER(EXPR)` without `??` is out of scope.
+
+use lockstep_core::Finding;
+use tree_sitter::Node;
+
+use crate::node_utils::{first_named_child, node_text, raw_comparable_children};
+use crate::walk::{walk, WalkCtx};
+
+/// One-time top-level scan: registers each `function HELPER(...) { ... }`
+/// declaration whose name is configured. Pushes its byte start onto
+/// `ignored_head_starts` so the structural compare won't see the extra
+/// declaration, and records the name in `recognized_narrowing_helpers` so
+/// call-site matching can verify the helper is locally declared.
+pub(super) fn register_narrowing_helper_declarations(ctx: &mut WalkCtx, head_root: Node) {
+    if !ctx.allow_pure_narrowing_helper || ctx.narrowing_helpers.is_empty() {
+        return;
+    }
+    let mut cursor = head_root.walk();
+    for child in head_root.children(&mut cursor) {
+        if !child.is_named() {
+            continue;
+        }
+        let Some(name) = declared_function_name(child, ctx.head_src) else {
+            continue;
+        };
+        if !ctx.narrowing_helpers.iter().any(|h| h == &name) {
+            continue;
+        }
+        ctx.ignored_head_starts.push(child.start_byte());
+        if !ctx.recognized_narrowing_helpers.contains(&name) {
+            ctx.recognized_narrowing_helpers.push(name);
+        }
+    }
+}
+
+fn declared_function_name(node: Node, src: &str) -> Option<String> {
+    if node.kind() != "function_declaration" {
+        return None;
+    }
+    let name = node.child_by_field_name("name")?;
+    if name.kind() != "identifier" {
+        return None;
+    }
+    Some(node_text(name, src))
+}
+
+/// Pair pre-empt for `HELPER(EXPR) ?? DEFAULT` ↔ base `EXPR`.
+///
+/// Returns `true` when the head shape matches a registered helper call and
+/// the inner `EXPR` sub-walks to no findings against `base`.
+pub(super) fn is_pure_narrowing_helper_pair(ctx: &WalkCtx, base: Node, head: Node) -> bool {
+    if !ctx.allow_pure_narrowing_helper {
+        return false;
+    }
+    if ctx.recognized_narrowing_helpers.is_empty() {
+        return false;
+    }
+    let Some(inner) = extract_helper_call_inner(ctx, head) else {
+        return false;
+    };
+    sub_walk_clean(ctx, base, inner)
+}
+
+fn extract_helper_call_inner<'a>(ctx: &WalkCtx, head: Node<'a>) -> Option<Node<'a>> {
+    if head.kind() != "binary_expression" {
+        return None;
+    }
+    let op = head.child_by_field_name("operator")?;
+    if node_text(op, ctx.head_src) != "??" {
+        return None;
+    }
+    let left = unwrap_parens(head.child_by_field_name("left")?);
+    if left.kind() != "call_expression" {
+        return None;
+    }
+    let callee = left.child_by_field_name("function")?;
+    if callee.kind() != "identifier" {
+        return None;
+    }
+    let helper_name = node_text(callee, ctx.head_src);
+    if !ctx
+        .recognized_narrowing_helpers
+        .iter()
+        .any(|h| h == &helper_name)
+    {
+        return None;
+    }
+    let arguments = left.child_by_field_name("arguments")?;
+    let args: Vec<Node> = raw_comparable_children(arguments)
+        .into_iter()
+        .filter(|n| n.is_named())
+        .collect();
+    if args.len() != 1 {
+        return None;
+    }
+    Some(unwrap_parens(args[0]))
+}
+
+fn sub_walk_clean(ctx: &WalkCtx, base: Node, head_inner: Node) -> bool {
+    let scratch = ctx.scratch();
+    let mut findings: Vec<Finding> = Vec::new();
+    walk(&scratch, base, head_inner, &mut findings);
+    findings.is_empty()
+}
+
+fn unwrap_parens(mut node: Node) -> Node {
+    while node.kind() == "parenthesized_expression" {
+        match first_named_child(node) {
+            Some(child) => node = child,
+            None => break,
+        }
+    }
+    node
+}

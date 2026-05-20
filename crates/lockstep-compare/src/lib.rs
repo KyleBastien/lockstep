@@ -16,8 +16,11 @@ mod node_utils;
 mod non_null_alias_local;
 mod nullish_widening_equivalence;
 mod optional_chain;
+mod promise_settled_discrimination;
+mod pure_narrowing_helper;
 mod request_field_narrowing;
 mod transient_cache_wrap;
+mod unknown_catch_narrowing;
 
 pub mod report;
 pub mod tokens;
@@ -40,11 +43,17 @@ mod iife_async_wrapper_tests;
 #[cfg(test)]
 mod non_null_alias_local_tests;
 #[cfg(test)]
+mod promise_settled_discrimination_tests;
+#[cfg(test)]
+mod pure_narrowing_helper_tests;
+#[cfg(test)]
 mod request_field_narrowing_tests;
 #[cfg(test)]
 mod test_helpers;
 #[cfg(test)]
 mod transient_cache_wrap_tests;
+#[cfg(test)]
+mod unknown_catch_narrowing_tests;
 #[cfg(test)]
 mod walk_tests;
 #[cfg(test)]

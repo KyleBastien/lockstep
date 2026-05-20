@@ -300,6 +300,10 @@ allow_non_null_alias_local = false
 allow_defensive_log_guard = false
 defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
 allow_dead_defensive_optional_chain_removal = false
+allow_unknown_catch_narrowing = false
+allow_promise_settled_discrimination = false
+allow_pure_narrowing_helper = false
+narrowing_helpers = []
 report_all_findings = true
 ignore = [
     "**/*.test.ts",

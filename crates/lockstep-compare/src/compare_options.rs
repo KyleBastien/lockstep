@@ -67,4 +67,26 @@ pub struct CompareOptions {
     /// the chained object cannot be null/undefined at runtime in base. See
     /// `dead_defensive_optional_chain` for the deadness-witness rules.
     pub allow_dead_defensive_optional_chain_removal: bool,
+    /// Accept a head-side `ERR instanceof Error ? ERR.PROP : <fallback>`
+    /// ternary (inline or extracted into a `const`) as equivalent to a base
+    /// bare `ERR.PROP` access, when `ERR` is bound by an enclosing
+    /// `catch_clause`. TypeScript's strict-mode `unknown` catch binding forces
+    /// this shape. See `unknown_catch_narrowing`.
+    pub allow_unknown_catch_narrowing: bool,
+    /// Accept a head-inserted `if (NAME.status !== "fulfilled") return X;`
+    /// (or `!== "rejected"`) early-return guard before later `NAME.value.X`
+    /// or `NAME.reason.X` access, when `NAME` is bound to a
+    /// `Promise.allSettled` result. Deadness witness: base would have thrown
+    /// reading `.value` on rejected (or `.reason` on fulfilled). See
+    /// `promise_settled_discrimination`.
+    pub allow_promise_settled_discrimination: bool,
+    /// Accept head `HELPER(EXPR) ?? DEFAULT` as equivalent to base `EXPR`
+    /// when `HELPER` is listed in `narrowing_helpers` and declared in head.
+    /// Top-level helper declarations are filtered from the head program.
+    /// Diverges observably when `EXPR` is not the expected runtime type.
+    /// See `pure_narrowing_helper`.
+    pub allow_pure_narrowing_helper: bool,
+    /// Function names recognized as pure narrowing helpers by
+    /// `allow_pure_narrowing_helper`. Defaults to empty — opt-in per workspace.
+    pub narrowing_helpers: Vec<String>,
 }

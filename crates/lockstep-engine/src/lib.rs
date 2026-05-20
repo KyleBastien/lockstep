@@ -97,6 +97,10 @@ fn check_pair(
         defensive_log_guard_methods: config.defensive_log_guard_methods.clone(),
         allow_dead_defensive_optional_chain_removal: config
             .allow_dead_defensive_optional_chain_removal,
+        allow_unknown_catch_narrowing: config.allow_unknown_catch_narrowing,
+        allow_promise_settled_discrimination: config.allow_promise_settled_discrimination,
+        allow_pure_narrowing_helper: config.allow_pure_narrowing_helper,
+        narrowing_helpers: config.narrowing_helpers.clone(),
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)

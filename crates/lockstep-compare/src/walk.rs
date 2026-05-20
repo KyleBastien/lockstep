@@ -21,11 +21,18 @@ use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_childre
 use crate::non_null_alias_local::{apply_non_null_alias_local, is_non_null_alias_pair};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::optional_chain::handle_optional_chain;
+use crate::promise_settled_discrimination::apply_promise_settled_discrimination;
+use crate::pure_narrowing_helper::{
+    is_pure_narrowing_helper_pair, register_narrowing_helper_declarations,
+};
 use crate::request_field_narrowing::{
     apply_request_field_narrowing, is_narrowed_request_field_pair,
 };
 use crate::tokens::canonical;
 use crate::transient_cache_wrap::{apply_transient_cache_wrap, is_transient_local_pair};
+use crate::unknown_catch_narrowing::{
+    apply_unknown_catch_narrowing, is_catch_narrowed_pair, is_unknown_catch_narrowing_pair,
+};
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
     let mut parser = Parser::new();
@@ -48,7 +55,8 @@ pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Fin
         None => return vec![parse_error(&opts.path, false)],
     };
 
-    let ctx = WalkCtx::from_opts(base_src, head_src, opts);
+    let mut ctx = WalkCtx::from_opts(base_src, head_src, opts);
+    register_narrowing_helper_declarations(&mut ctx, head_tree.root_node());
     let mut findings = Vec::new();
     walk(
         &ctx,
@@ -77,7 +85,8 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
 }
 
 pub(super) use crate::walk_ctx::{
-    CacheAlias, NarrowedRequestField, NonNullAliasLocal, Side, TransientLocal, WalkCtx,
+    CacheAlias, CatchNarrowedLocal, NarrowedRequestField, NonNullAliasLocal, Side, TransientLocal,
+    WalkCtx,
 };
 
 pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
@@ -110,6 +119,9 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
         || is_transient_local_pair(ctx, base, head)
         || is_narrowed_request_field_pair(ctx, base, head)
         || is_non_null_alias_pair(ctx, base, head)
+        || is_catch_narrowed_pair(ctx, base, head)
+        || is_unknown_catch_narrowing_pair(ctx, base, head)
+        || is_pure_narrowing_helper_pair(ctx, base, head)
         || is_array_first_pair(ctx, base, head)
         || is_nullish_widening_pair(ctx, base, head)
 }
@@ -142,6 +154,8 @@ fn block_rule_consumed(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec
     applied |= apply_transient_cache_wrap(&mut child_ctx, base, head);
     applied |= apply_request_field_narrowing(&mut child_ctx, base, head);
     applied |= apply_non_null_alias_local(&mut child_ctx, base, head);
+    applied |= apply_unknown_catch_narrowing(&mut child_ctx, base, head);
+    applied |= apply_promise_settled_discrimination(&mut child_ctx, base, head);
     applied |= apply_defensive_null_guard(&mut child_ctx, base, head);
     if applied {
         walk_regular(&child_ctx, base, head, findings);

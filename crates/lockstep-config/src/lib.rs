@@ -45,6 +45,10 @@ pub struct Config {
     pub allow_defensive_log_guard: bool,
     pub defensive_log_guard_methods: Vec<String>,
     pub allow_dead_defensive_optional_chain_removal: bool,
+    pub allow_unknown_catch_narrowing: bool,
+    pub allow_promise_settled_discrimination: bool,
+    pub allow_pure_narrowing_helper: bool,
+    pub narrowing_helpers: Vec<String>,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -78,6 +82,10 @@ impl Default for Config {
             allow_defensive_log_guard: false,
             defensive_log_guard_methods: default_log_guard_methods(),
             allow_dead_defensive_optional_chain_removal: false,
+            allow_unknown_catch_narrowing: false,
+            allow_promise_settled_discrimination: false,
+            allow_pure_narrowing_helper: false,
+            narrowing_helpers: Vec::new(),
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -160,6 +168,10 @@ mod tests {
         assert!(!c.allow_non_null_alias_local);
         assert!(!c.allow_defensive_log_guard);
         assert!(!c.allow_dead_defensive_optional_chain_removal);
+        assert!(!c.allow_unknown_catch_narrowing);
+        assert!(!c.allow_promise_settled_discrimination);
+        assert!(!c.allow_pure_narrowing_helper);
+        assert!(c.narrowing_helpers.is_empty());
         assert_eq!(
             c.defensive_log_guard_methods,
             vec!["debug", "info", "warn", "error", "trace", "log"]
