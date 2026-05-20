@@ -1,167 +1,143 @@
+use crate::compare_options::CompareOptions;
 use crate::test_helpers::{
     assert_equiv_raw, assert_flagged_raw, build_opts, dead_defensive_optional_chain_opts,
     dead_defensive_plus_cache_alias_opts, opts_report_all, OptsOverrides,
 };
 
+/// Wraps `base_body` and `head_body` in identical function shells and asserts
+/// equivalence under the dead-defensive rule. Used to reduce the
+/// boilerplate shared across the positive cases.
+fn assert_equiv_function(signature: &str, base_body: &str, head_body: &str) {
+    let (base, head) = function_pair(signature, base_body, head_body);
+    assert_equiv_raw(&base, &head, &dead_defensive_optional_chain_opts());
+}
+
+/// Mirror of [`assert_equiv_function`] for negative cases.
+fn assert_flagged_function(signature: &str, base_body: &str, head_body: &str) {
+    assert_flagged_function_with(
+        signature,
+        base_body,
+        head_body,
+        &dead_defensive_optional_chain_opts(),
+    );
+}
+
+fn assert_flagged_function_with(
+    signature: &str,
+    base_body: &str,
+    head_body: &str,
+    opts: &CompareOptions,
+) {
+    let (base, head) = function_pair(signature, base_body, head_body);
+    assert_flagged_raw(&base, &head, opts);
+}
+
+fn function_pair(signature: &str, base_body: &str, head_body: &str) -> (String, String) {
+    let base = format!("function f({signature}) {{\n{base_body}\n}}");
+    let head = format!("function f({signature}) {{\n{head_body}\n}}");
+    (base, head)
+}
+
 /// Positive: the canonical PushPress shape — `if (!o?.p) { o.p = …; }`.
 #[test]
 fn dead_defensive_optional_chain_absorbs_negated_condition() {
-    let base = "function f(subscription, userUuid, plan) {
-        if (!subscription?.userUuid) {
-            subscription.userUuid = userUuid;
-            subscription.plan = plan;
-        }
-    }";
-    let head = "function f(subscription, userUuid, plan) {
-        if (!subscription.userUuid) {
-            subscription.userUuid = userUuid;
-            subscription.plan = plan;
-        }
-    }";
-    assert_equiv_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_equiv_function(
+        "subscription, userUuid, plan",
+        "if (!subscription?.userUuid) {\n\
+                subscription.userUuid = userUuid;\n\
+                subscription.plan = plan;\n\
+            }",
+        "if (!subscription.userUuid) {\n\
+                subscription.userUuid = userUuid;\n\
+                subscription.plan = plan;\n\
+            }",
+    );
 }
 
 /// Positive: positive (non-negated) condition with `Object.assign(o, …)`
 /// witness.
 #[test]
 fn dead_defensive_optional_chain_absorbs_object_assign_witness() {
-    let base = "function f(o, x) {
-        if (o?.p) {
-            Object.assign(o, x);
-        }
-    }";
-    let head = "function f(o, x) {
-        if (o.p) {
-            Object.assign(o, x);
-        }
-    }";
-    assert_equiv_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_equiv_function(
+        "o, x",
+        "if (o?.p) { Object.assign(o, x); }",
+        "if (o.p) { Object.assign(o, x); }",
+    );
 }
 
 /// Positive: computed member assignment `o[i] = …`.
 #[test]
 fn dead_defensive_optional_chain_absorbs_subscript_write() {
-    let base = "function f(o, i, v) {
-        if (!o?.p) {
-            o[i] = v;
-        }
-    }";
-    let head = "function f(o, i, v) {
-        if (!o.p) {
-            o[i] = v;
-        }
-    }";
-    assert_equiv_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_equiv_function(
+        "o, i, v",
+        "if (!o?.p) { o[i] = v; }",
+        "if (!o.p) { o[i] = v; }",
+    );
 }
 
 /// Positive: augmented assignment counts as an unsafe write.
 #[test]
 fn dead_defensive_optional_chain_absorbs_augmented_assignment() {
-    let base = "function f(o, n) {
-        if (!o?.p) {
-            o.p += n;
-        }
-    }";
-    let head = "function f(o, n) {
-        if (!o.p) {
-            o.p += n;
-        }
-    }";
-    assert_equiv_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_equiv_function(
+        "o, n",
+        "if (!o?.p) { o.p += n; }",
+        "if (!o.p) { o.p += n; }",
+    );
 }
 
 /// Negative: reassignment of the target (not a member write) is not a
 /// deadness witness.
 #[test]
 fn dead_defensive_optional_chain_rejects_reassignment() {
-    let base = "function f(o, newValue) {
-        if (!o?.p) {
-            o = newValue;
-        }
-    }";
-    let head = "function f(o, newValue) {
-        if (!o.p) {
-            o = newValue;
-        }
-    }";
-    assert_flagged_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_flagged_function(
+        "o, newValue",
+        "if (!o?.p) { o = newValue; }",
+        "if (!o.p) { o = newValue; }",
+    );
 }
 
 /// Negative: write nested inside an inner `if (o)` guard — the `?.` actively
 /// protects the case where `o` is undefined.
 #[test]
 fn dead_defensive_optional_chain_rejects_guarded_write() {
-    let base = "function f(o, v) {
-        if (!o?.p) {
-            if (o) {
-                o.p = v;
-            }
-        }
-    }";
-    let head = "function f(o, v) {
-        if (!o.p) {
-            if (o) {
-                o.p = v;
-            }
-        }
-    }";
-    assert_flagged_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_flagged_function(
+        "o, v",
+        "if (!o?.p) { if (o) { o.p = v; } }",
+        "if (!o.p) { if (o) { o.p = v; } }",
+    );
 }
 
 /// Negative: pure read, no write — `?.` is meaningful (the function would
 /// otherwise throw on the read).
 #[test]
 fn dead_defensive_optional_chain_rejects_read_only_body() {
-    let base = "function f(o, logger) {
-        if (!o?.p) {
-            logger.info(o);
-        }
-    }";
-    let head = "function f(o, logger) {
-        if (!o.p) {
-            logger.info(o);
-        }
-    }";
-    assert_flagged_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_flagged_function(
+        "o, logger",
+        "if (!o?.p) { logger.info(o); }",
+        "if (!o.p) { logger.info(o); }",
+    );
 }
 
 /// Negative: rule defaults off.
 #[test]
 fn dead_defensive_optional_chain_is_gated_off_by_default() {
-    let base = "function f(o, v) {
-        if (!o?.p) {
-            o.p = v;
-        }
-    }";
-    let head = "function f(o, v) {
-        if (!o.p) {
-            o.p = v;
-        }
-    }";
-    assert_flagged_raw(base, head, &opts_report_all());
+    assert_flagged_function_with(
+        "o, v",
+        "if (!o?.p) { o.p = v; }",
+        "if (!o.p) { o.p = v; }",
+        &opts_report_all(),
+    );
 }
 
 /// Composition: rule fires through the recursive walker — multiple chains
 /// in the same function each resolve independently.
 #[test]
 fn dead_defensive_optional_chain_composes_in_recursive_walk() {
-    let base = "function f(a, b, v) {
-        if (!a?.p) {
-            a.p = v;
-        }
-        if (!b?.q) {
-            b.q = v;
-        }
-    }";
-    let head = "function f(a, b, v) {
-        if (!a.p) {
-            a.p = v;
-        }
-        if (!b.q) {
-            b.q = v;
-        }
-    }";
-    assert_equiv_raw(base, head, &dead_defensive_optional_chain_opts());
+    assert_equiv_function(
+        "a, b, v",
+        "if (!a?.p) { a.p = v; }\nif (!b?.q) { b.q = v; }",
+        "if (!a.p) { a.p = v; }\nif (!b.q) { b.q = v; }",
+    );
 }
 
 /// Identifier aliasing: base bare identifier ↔ head `this.PROP` via

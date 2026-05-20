@@ -96,40 +96,59 @@ fn object_matches(ctx: &WalkCtx, base_object: Node, head_object: Node) -> bool {
     if base_text == head_text {
         return true;
     }
-    // Cache-alias substitution: base bare identifier ↔ head `this.PROP`.
-    if base_object.kind() == "identifier" && head_object.kind() == "member_expression" {
-        if let Some(prop) = this_property(head_object, ctx.head_src) {
-            if ctx
-                .aliases
-                .iter()
-                .any(|a| a.base_name == base_text && a.head_property == prop)
-            {
-                return true;
-            }
-        }
+    if matches_cache_field_alias(ctx, base_object, head_object, &base_text) {
+        return true;
     }
-    // Non-null alias local: head local identifier resolves to a base cache.
-    if head_object.kind() == "identifier" {
-        if let Some(alias) = ctx
-            .non_null_aliases
-            .iter()
-            .find(|a| a.head_local == head_text)
-        {
-            if alias.base_target_text == base_text {
-                return true;
-            }
-            if let Some(prop) = &alias.head_this_property {
-                if ctx
-                    .aliases
-                    .iter()
-                    .any(|a| a.base_name == base_text && a.head_property == *prop)
-                {
-                    return true;
-                }
-            }
-        }
+    matches_non_null_alias(ctx, head_object, &base_text, &head_text)
+}
+
+/// Cache-alias substitution: base bare identifier `X` resolves to head
+/// `this.PROP` via [`crate::walk::CacheAlias`].
+fn matches_cache_field_alias(
+    ctx: &WalkCtx,
+    base_object: Node,
+    head_object: Node,
+    base_text: &str,
+) -> bool {
+    if base_object.kind() != "identifier" || head_object.kind() != "member_expression" {
+        return false;
     }
-    false
+    let Some(prop) = this_property(head_object, ctx.head_src) else {
+        return false;
+    };
+    ctx.aliases
+        .iter()
+        .any(|a| a.base_name == base_text && a.head_property == prop)
+}
+
+/// Non-null alias local substitution: head local `LOCAL` was extracted as
+/// `const LOCAL = CACHE;`. Either `CACHE` matches `base_text` directly, or
+/// it does so transitively via a cache-field alias.
+fn matches_non_null_alias(
+    ctx: &WalkCtx,
+    head_object: Node,
+    base_text: &str,
+    head_text: &str,
+) -> bool {
+    if head_object.kind() != "identifier" {
+        return false;
+    }
+    let Some(alias) = ctx
+        .non_null_aliases
+        .iter()
+        .find(|a| a.head_local == head_text)
+    else {
+        return false;
+    };
+    if alias.base_target_text == base_text {
+        return true;
+    }
+    let Some(prop) = alias.head_this_property.as_ref() else {
+        return false;
+    };
+    ctx.aliases
+        .iter()
+        .any(|a| a.base_name == base_text && a.head_property == *prop)
 }
 
 fn this_property(node: Node, src: &str) -> Option<String> {
@@ -149,16 +168,22 @@ fn this_property(node: Node, src: &str) -> Option<String> {
 fn enclosing_if_with_condition<'a>(node: Node<'a>) -> Option<Node<'a>> {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        if parent.kind() == "if_statement" {
-            if let Some(cond) = parent.child_by_field_name("condition") {
-                if cond.start_byte() <= node.start_byte() && node.end_byte() <= cond.end_byte() {
-                    return Some(parent);
-                }
-            }
+        if if_condition_contains(parent, node) {
+            return Some(parent);
         }
         current = parent;
     }
     None
+}
+
+fn if_condition_contains(if_stmt: Node, target: Node) -> bool {
+    if if_stmt.kind() != "if_statement" {
+        return false;
+    }
+    let Some(cond) = if_stmt.child_by_field_name("condition") else {
+        return false;
+    };
+    cond.start_byte() <= target.start_byte() && target.end_byte() <= cond.end_byte()
 }
 
 fn unwrap_block(node: Node) -> Node {
@@ -190,21 +215,27 @@ fn has_unguarded_unsafe_write(node: Node, src: &str, obj: &str) -> bool {
         if !child.is_named() {
             continue;
         }
-        if child.kind() == "if_statement" && condition_guards_object(child, src, obj) {
-            // Skip the guarded `then` branch — writes inside are protected,
-            // so they do not witness deadness. Still descend into `else`.
-            if let Some(alt) = child.child_by_field_name("alternative") {
-                if has_unguarded_unsafe_write(alt, src, obj) {
-                    return true;
-                }
-            }
-            continue;
-        }
-        if has_unguarded_unsafe_write(child, src, obj) {
+        if child_witnesses_unguarded_write(child, src, obj) {
             return true;
         }
     }
     false
+}
+
+fn child_witnesses_unguarded_write(child: Node, src: &str, obj: &str) -> bool {
+    if child.kind() == "if_statement" && condition_guards_object(child, src, obj) {
+        return guarded_if_else_witnesses(child, src, obj);
+    }
+    has_unguarded_unsafe_write(child, src, obj)
+}
+
+/// Guarded `if (OBJ) { … }`: writes in the `then` branch are protected and
+/// do not witness deadness, but we still descend into the `else` branch.
+fn guarded_if_else_witnesses(if_stmt: Node, src: &str, obj: &str) -> bool {
+    let Some(alt) = if_stmt.child_by_field_name("alternative") else {
+        return false;
+    };
+    has_unguarded_unsafe_write(alt, src, obj)
 }
 
 /// Recognizes:
@@ -310,40 +341,27 @@ fn binary_guards_object(binary: Node, src: &str, obj: &str) -> bool {
 }
 
 fn is_reassigned(node: Node, src: &str, obj: &str) -> bool {
-    match node.kind() {
-        "assignment_expression" => {
-            if let Some(left) = node.child_by_field_name("left") {
-                if compact_node_text(left, src) == obj {
-                    return true;
-                }
-            }
-        }
-        "augmented_assignment_expression" => {
-            if let Some(left) = node.child_by_field_name("left") {
-                if compact_node_text(left, src) == obj {
-                    return true;
-                }
-            }
-        }
-        "update_expression" => {
-            if let Some(arg) = node
-                .child_by_field_name("argument")
-                .or_else(|| first_named_child(node))
-            {
-                if compact_node_text(arg, src) == obj {
-                    return true;
-                }
-            }
-        }
-        _ => {}
+    if node_reassigns_target(node, src, obj) {
+        return true;
     }
     let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if is_reassigned(child, src, obj) {
-            return true;
+    let children: Vec<Node> = node.children(&mut cursor).collect();
+    children
+        .into_iter()
+        .any(|child| is_reassigned(child, src, obj))
+}
+
+fn node_reassigns_target(node: Node, src: &str, obj: &str) -> bool {
+    let target = match node.kind() {
+        "assignment_expression" | "augmented_assignment_expression" => {
+            node.child_by_field_name("left")
         }
-    }
-    false
+        "update_expression" => node
+            .child_by_field_name("argument")
+            .or_else(|| first_named_child(node)),
+        _ => None,
+    };
+    target.is_some_and(|t| compact_node_text(t, src) == obj)
 }
 
 fn unwrap_parens(mut node: Node) -> Node {
