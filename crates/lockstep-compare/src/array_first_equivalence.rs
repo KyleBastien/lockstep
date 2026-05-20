@@ -129,12 +129,7 @@ fn condition_matches(ctx: &WalkCtx, cond: Node, expected_obj: Node, expect_optio
     false
 }
 
-fn length_gt_zero(
-    ctx: &WalkCtx,
-    cond: Node,
-    expected_obj: Node,
-    expect_optional: bool,
-) -> bool {
+fn length_gt_zero(ctx: &WalkCtx, cond: Node, expected_obj: Node, expect_optional: bool) -> bool {
     let Some(right) = cond.child_by_field_name("right") else {
         return false;
     };
@@ -147,12 +142,7 @@ fn length_gt_zero(
     is_length_access(ctx, unwrap_parens(left), expected_obj, expect_optional)
 }
 
-fn and_length_check(
-    ctx: &WalkCtx,
-    cond: Node,
-    expected_obj: Node,
-    expect_optional: bool,
-) -> bool {
+fn and_length_check(ctx: &WalkCtx, cond: Node, expected_obj: Node, expect_optional: bool) -> bool {
     let Some(left) = cond.child_by_field_name("left") else {
         return false;
     };
@@ -169,12 +159,7 @@ fn and_length_check(
     length_gt_zero(ctx, right, expected_obj, expect_optional)
 }
 
-fn is_length_access(
-    ctx: &WalkCtx,
-    node: Node,
-    expected_obj: Node,
-    expect_optional: bool,
-) -> bool {
+fn is_length_access(ctx: &WalkCtx, node: Node, expected_obj: Node, expect_optional: bool) -> bool {
     if node.kind() != "member_expression" {
         return false;
     }

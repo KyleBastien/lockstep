@@ -117,9 +117,7 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
     )
 }
 
-pub(super) use crate::walk_ctx::{
-    CacheAlias, NarrowedRequestField, Side, TransientLocal, WalkCtx,
-};
+pub(super) use crate::walk_ctx::{CacheAlias, NarrowedRequestField, Side, TransientLocal, WalkCtx};
 
 pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     if !ctx.report_all && !findings.is_empty() {
@@ -156,12 +154,7 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
 
 /// Block- and callable-scoped pre-empts that may consume the pair by running
 /// their own sub-walk and feeding findings back to the outer pass.
-fn block_rule_consumed(
-    ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    findings: &mut Vec<Finding>,
-) -> bool {
+fn block_rule_consumed(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) -> bool {
     try_transient_cache_wrap(ctx, base, head, findings)
         || try_request_field_narrowing(ctx, base, head, findings)
         || try_defensive_null_guard(ctx, base, head, findings)

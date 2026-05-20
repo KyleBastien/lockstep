@@ -77,20 +77,20 @@ pub(super) fn try_request_field_narrowing(
         let Some(narrow) = extract_narrow(*stmt, ctx.head_src) else {
             continue;
         };
-        if !head_stmts
-            .iter()
-            .any(|s| s.start_byte() != stmt.start_byte() && uses_identifier(*s, ctx.head_src, &narrow.head_name))
-        {
+        if !head_stmts.iter().any(|s| {
+            s.start_byte() != stmt.start_byte()
+                && uses_identifier(*s, ctx.head_src, &narrow.head_name)
+        }) {
             continue;
         }
+        child_ctx.ignored_head_starts.push(stmt.start_byte());
         child_ctx
-            .ignored_head_starts
-            .push(stmt.start_byte());
-        child_ctx.narrowed_request_fields.push(NarrowedRequestField {
-            head_name: narrow.head_name,
-            base_object: narrow.base_object,
-            base_property: narrow.base_property,
-        });
+            .narrowed_request_fields
+            .push(NarrowedRequestField {
+                head_name: narrow.head_name,
+                base_object: narrow.base_object,
+                base_property: narrow.base_property,
+            });
         applied = true;
     }
     if !applied {
@@ -156,10 +156,7 @@ fn parse_ternary_target(ternary: Node, src: &str) -> Option<(String, String)> {
     }
     let cons_obj = unwrap_parens(consequence.child_by_field_name("object")?);
     let cons_prop = consequence.child_by_field_name("property")?;
-    Some((
-        compact_node_text(cons_obj, src),
-        node_text(cons_prop, src),
-    ))
+    Some((compact_node_text(cons_obj, src), node_text(cons_prop, src)))
 }
 
 fn narrow_condition_matches(ternary: Node, src: &str, obj: &str, prop: &str) -> bool {
@@ -201,12 +198,7 @@ fn matches_in_check(node: Node, src: &str, expected_obj: &str, expected_prop: &s
     compact_node_text(right, src) == expected_obj
 }
 
-fn matches_typeof_check(
-    node: Node,
-    src: &str,
-    expected_obj: &str,
-    expected_prop: &str,
-) -> bool {
+fn matches_typeof_check(node: Node, src: &str, expected_obj: &str, expected_prop: &str) -> bool {
     if node.kind() != "binary_expression" {
         return false;
     }

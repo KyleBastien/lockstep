@@ -18,7 +18,11 @@ const HEAD_ASYNC_AWAIT: &str = "class C {
 
 #[test]
 fn async_propagation_absorbs_await_injection_in_method() {
-    assert_equiv_raw(BASE_SYNC_SPREAD, HEAD_ASYNC_AWAIT, &async_propagation_opts());
+    assert_equiv_raw(
+        BASE_SYNC_SPREAD,
+        HEAD_ASYNC_AWAIT,
+        &async_propagation_opts(),
+    );
 }
 
 #[test]

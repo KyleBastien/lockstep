@@ -58,9 +58,21 @@ opts_fn!(tier2_opts, array_first_tier1, array_first_tier2);
 opts_fn!(cache_alias_opts, cache_alias);
 opts_fn!(cache_alias_plus_tier1_opts, cache_alias, array_first_tier1);
 opts_fn!(widening_opts, nullish_widening);
-opts_fn!(widening_plus_swap_opts, nullish_widening, null_undefined_swap);
-opts_fn!(widening_plus_tier1_opts, nullish_widening, array_first_tier1);
-opts_fn!(widening_plus_cache_alias_opts, nullish_widening, cache_alias);
+opts_fn!(
+    widening_plus_swap_opts,
+    nullish_widening,
+    null_undefined_swap
+);
+opts_fn!(
+    widening_plus_tier1_opts,
+    nullish_widening,
+    array_first_tier1
+);
+opts_fn!(
+    widening_plus_cache_alias_opts,
+    nullish_widening,
+    cache_alias
+);
 opts_fn!(iife_async_opts, iife_async_wrapper);
 opts_fn!(
     iife_async_plus_cache_alias_opts,

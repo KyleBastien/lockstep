@@ -41,7 +41,11 @@ pub(super) struct WalkCtx<'a> {
 }
 
 impl<'a> WalkCtx<'a> {
-    pub(super) fn from_opts(base_src: &'a str, head_src: &'a str, opts: &'a CompareOptions) -> Self {
+    pub(super) fn from_opts(
+        base_src: &'a str,
+        head_src: &'a str,
+        opts: &'a CompareOptions,
+    ) -> Self {
         Self {
             base_src,
             head_src,
