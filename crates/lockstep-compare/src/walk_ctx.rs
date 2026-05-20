@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use crate::walk::CompareOptions;
+use crate::compare_options::CompareOptions;
 
 #[derive(Clone)]
 pub(super) struct WalkCtx<'a> {
@@ -25,6 +25,9 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_request_field_narrowing: bool,
     pub(super) allow_async_propagation: bool,
     pub(super) allow_defensive_null_guard: bool,
+    pub(super) allow_non_null_alias_local: bool,
+    pub(super) allow_defensive_log_guard: bool,
+    pub(super) defensive_log_guard_methods: Vec<String>,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -34,6 +37,9 @@ pub(super) struct WalkCtx<'a> {
     /// Head locals narrowed from a base member expression of the form
     /// `OBJ.PROP`. Populated by `request_field_narrowing`.
     pub(super) narrowed_request_fields: Vec<NarrowedRequestField>,
+    /// Head locals captured as `const LOCAL = CACHE;` after a null guard.
+    /// Populated by `non_null_alias_local`. Resolved at leaf-pair compare.
+    pub(super) non_null_aliases: Vec<NonNullAliasLocal>,
     /// Active for the body of a callable where `async_propagation` accepted
     /// a base-sync / head-async divergence. Allows `await EXPR` on head where
     /// base has bare `EXPR`.
@@ -63,11 +69,15 @@ impl<'a> WalkCtx<'a> {
             allow_request_field_narrowing: opts.allow_request_field_narrowing,
             allow_async_propagation: opts.allow_async_propagation,
             allow_defensive_null_guard: opts.allow_defensive_null_guard,
+            allow_non_null_alias_local: opts.allow_non_null_alias_local,
+            allow_defensive_log_guard: opts.allow_defensive_log_guard,
+            defensive_log_guard_methods: opts.defensive_log_guard_methods.clone(),
             ignored_base_starts: Vec::new(),
             ignored_head_starts: Vec::new(),
             aliases: Vec::new(),
             transient_locals: Vec::new(),
             narrowed_request_fields: Vec::new(),
+            non_null_aliases: Vec::new(),
             async_propagation_active: false,
         }
     }
@@ -81,6 +91,7 @@ impl<'a> WalkCtx<'a> {
         s.aliases.clear();
         s.transient_locals.clear();
         s.narrowed_request_fields.clear();
+        s.non_null_aliases.clear();
         s.async_propagation_active = false;
         s
     }
@@ -109,6 +120,21 @@ pub(super) struct NarrowedRequestField {
     pub(super) head_name: String,
     pub(super) base_object: String,
     pub(super) base_property: String,
+}
+
+/// A head-side local `LOCAL` declared as `const LOCAL = CACHE;` after a null
+/// guard for `CACHE`. Subsequent `LOCAL` uses on head compare equal to base
+/// occurrences of `CACHE` (an identifier or `this.PROP`) for the scope of
+/// the enclosing block. Registered by `allow_non_null_alias_local`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct NonNullAliasLocal {
+    pub(super) head_local: String,
+    /// Compacted text of the cache expression as it appears on head.
+    /// For example, `this._invoiceCache` or `invoiceCache`.
+    pub(super) base_target_text: String,
+    /// When the cache is `this.PROP`, the property name (used to resolve
+    /// base bare-identifier references via `allow_closure_cache_field_alias`).
+    pub(super) head_this_property: Option<String>,
 }
 
 #[derive(Clone, Copy)]

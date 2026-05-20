@@ -25,11 +25,10 @@
 //! be a bare identifier and on head a `this._cache` member) and with
 //! `allow_array_first_element_or_null` (the typical `unwrap`).
 
-use lockstep_core::Finding;
 use tree_sitter::Node;
 
 use crate::node_utils::{first_named_child, node_text, raw_comparable_children};
-use crate::walk::{walk, walk_regular, TransientLocal, WalkCtx};
+use crate::walk::{walk, TransientLocal, WalkCtx};
 
 /// Returns `true` when an in-context transient-local alias matches the
 /// identifier pair.
@@ -44,16 +43,12 @@ pub(super) fn is_transient_local_pair(ctx: &WalkCtx, base: Node, head: Node) -> 
         .any(|t| t.base_name == base_text && t.head_name == head_text)
 }
 
-/// Attempts to consume the entire block compare using the transient-cache-wrap
-/// rule. Returns `true` when the block was handled (the caller must not fall
-/// through to `walk_regular`).
-pub(super) fn try_transient_cache_wrap(
-    ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    findings: &mut Vec<Finding>,
-) -> bool {
-    if !ctx.allow_transient_cache_wrap {
+/// Composable variant: detects the transient-cache-wrap pattern on the given
+/// block pair and, if matched, pushes its ignored byte ranges + alias onto
+/// `child_ctx`. Caller is responsible for running `walk_regular` afterwards.
+/// Returns `true` when the pattern matched.
+pub(super) fn apply_transient_cache_wrap(child_ctx: &mut WalkCtx, base: Node, head: Node) -> bool {
+    if !child_ctx.allow_transient_cache_wrap {
         return false;
     }
     if base.kind() != "statement_block" || head.kind() != "statement_block" {
@@ -70,10 +65,9 @@ pub(super) fn try_transient_cache_wrap(
     if base_stmts.len() != head_stmts.len() {
         return false;
     }
-    let Some(found) = find_transient_pair(ctx, &base_stmts, &head_stmts) else {
+    let Some(found) = find_transient_pair(child_ctx, &base_stmts, &head_stmts) else {
         return false;
     };
-    let mut child_ctx = ctx.clone();
     child_ctx
         .ignored_base_starts
         .push(found.base_stmt1.start_byte());
@@ -84,7 +78,6 @@ pub(super) fn try_transient_cache_wrap(
         head_name: found.local_name,
         base_name: found.cache_name,
     });
-    walk_regular(&child_ctx, base, head, findings);
     true
 }
 

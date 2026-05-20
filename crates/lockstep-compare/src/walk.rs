@@ -4,7 +4,7 @@
 //! in lockstep, comparing `kind()`, child arity, and (at leaves) canonical
 //! token text. Skips `comment` nodes and other JS trivia.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use lockstep_core::{Category, Finding};
 use tree_sitter::{Node, Parser, Tree};
@@ -13,60 +13,19 @@ use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::async_propagation::{maybe_unwrap_await, try_callable_async_propagation};
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
-use crate::defensive_null_guard::try_defensive_null_guard;
+use crate::compare_options::CompareOptions;
+use crate::defensive_log_guard::maybe_unwrap_log_guard;
+use crate::defensive_null_guard::apply_defensive_null_guard;
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
+use crate::non_null_alias_local::{apply_non_null_alias_local, is_non_null_alias_pair};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::optional_chain::handle_optional_chain;
-use crate::request_field_narrowing::{is_narrowed_request_field_pair, try_request_field_narrowing};
+use crate::request_field_narrowing::{
+    apply_request_field_narrowing, is_narrowed_request_field_pair,
+};
 use crate::tokens::canonical;
-use crate::transient_cache_wrap::{is_transient_local_pair, try_transient_cache_wrap};
-
-pub struct CompareOptions {
-    pub path: PathBuf,
-    /// If false, stop walking after the first divergence in a file.
-    pub report_all: bool,
-    /// Treat constructor assignments like `this.foo = function () {}` as
-    /// equivalent to class methods named `foo` when their callable bodies match.
-    pub allow_constructor_assigned_method_equivalence: bool,
-    /// Treat matching constructor-local caches and instance fields as aliases.
-    pub allow_closure_cache_field_alias: bool,
-    /// Treat condition-guarded "first element or null" ternaries as equivalent
-    /// to `EXPR[0] ?? null` (see `array_first_equivalence`).
-    pub allow_array_first_element_or_null: bool,
-    /// Additionally accept `EXPR[0] || null` and bare `EXPR[0]` as equivalent
-    /// base shapes for `EXPR[0] ?? null` on head.
-    pub allow_array_first_element_or_null_loose: bool,
-    /// Treat `EXPR` ↔ `EXPR ?? null` (or `EXPR ?? undefined`) as equivalent at
-    /// any AST position. Directional: head must be the widener.
-    pub allow_nullish_widening: bool,
-    /// Sub-flag of [`Self::allow_nullish_widening`]: additionally accept a bare
-    /// `null` ↔ `undefined` literal swap at any position. Off by default even
-    /// when widening is on, because `=== null` / `=== undefined` are
-    /// observationally distinct.
-    pub allow_null_undefined_swap: bool,
-    /// Treat a sync head method whose body is `return (async () => BODY)();`
-    /// as equivalent to a base async callable whose body is BODY. Lets TS
-    /// migrations carry phantom-branded return types that block bare `async`.
-    pub allow_iife_async_wrapper: bool,
-    /// Accept the two-statement base pattern `CACHE = X; CACHE = unwrap(CACHE);`
-    /// as equivalent to head `const LOCAL = X; CACHE = unwrap(LOCAL);` when
-    /// LOCAL is a fresh local used only inside the unwrap. Composes with
-    /// `allow_closure_cache_field_alias`.
-    pub allow_transient_cache_wrap: bool,
-    /// Accept a head `const IDENT = "PROP" in OBJ && typeof OBJ.PROP === T ? OBJ.PROP : undefined;`
-    /// extraction, treating later `IDENT` uses as equivalent to base
-    /// `OBJ.PROP` accesses in the same scope.
-    pub allow_request_field_narrowing: bool,
-    /// Accept head async + `await EXPR` where base is sync + bare `EXPR`,
-    /// provided at least one new `await` appears on head. Directional: never
-    /// the reverse.
-    pub allow_async_propagation: bool,
-    /// Accept a head-inserted `if (!CACHE) { logCall(...); return LIT; }`
-    /// guard between two base statements. Observably changes behavior —
-    /// stays off by default.
-    pub allow_defensive_null_guard: bool,
-}
+use crate::transient_cache_wrap::{apply_transient_cache_wrap, is_transient_local_pair};
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
     let mut parser = Parser::new();
@@ -117,7 +76,9 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
     )
 }
 
-pub(super) use crate::walk_ctx::{CacheAlias, NarrowedRequestField, Side, TransientLocal, WalkCtx};
+pub(super) use crate::walk_ctx::{
+    CacheAlias, NarrowedRequestField, NonNullAliasLocal, Side, TransientLocal, WalkCtx,
+};
 
 pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     if !ctx.report_all && !findings.is_empty() {
@@ -148,6 +109,7 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
     is_cache_alias_pair(ctx, base, head)
         || is_transient_local_pair(ctx, base, head)
         || is_narrowed_request_field_pair(ctx, base, head)
+        || is_non_null_alias_pair(ctx, base, head)
         || is_array_first_pair(ctx, base, head)
         || is_nullish_widening_pair(ctx, base, head)
 }
@@ -155,12 +117,37 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
 /// Block- and callable-scoped pre-empts that may consume the pair by running
 /// their own sub-walk and feeding findings back to the outer pass.
 fn block_rule_consumed(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) -> bool {
-    try_transient_cache_wrap(ctx, base, head, findings)
-        || try_request_field_narrowing(ctx, base, head, findings)
-        || try_defensive_null_guard(ctx, base, head, findings)
-        || maybe_unwrap_await(ctx, base, head, findings)
-        || (is_method_definition_pair(base, head)
-            && try_callable_async_propagation(ctx, base, head, findings))
+    // Non-composable pre-empts that operate on non-block pairs or set their
+    // own context for descendant walks.
+    if maybe_unwrap_await(ctx, base, head, findings) {
+        return true;
+    }
+    if maybe_unwrap_log_guard(ctx, base, head, findings) {
+        return true;
+    }
+    if is_method_definition_pair(base, head)
+        && try_callable_async_propagation(ctx, base, head, findings)
+    {
+        return true;
+    }
+
+    // Composable block-strip rules. Each may push ignored byte ranges and/or
+    // register scoped aliases onto a shared child_ctx; none calls
+    // walk_regular itself.
+    if base.kind() != "statement_block" || head.kind() != "statement_block" {
+        return false;
+    }
+    let mut child_ctx = ctx.clone();
+    let mut applied = false;
+    applied |= apply_transient_cache_wrap(&mut child_ctx, base, head);
+    applied |= apply_request_field_narrowing(&mut child_ctx, base, head);
+    applied |= apply_non_null_alias_local(&mut child_ctx, base, head);
+    applied |= apply_defensive_null_guard(&mut child_ctx, base, head);
+    if applied {
+        walk_regular(&child_ctx, base, head, findings);
+        return true;
+    }
+    false
 }
 
 pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {

@@ -22,49 +22,38 @@
 //! removed it, the size delta points the other way and the rule never
 //! fires.
 
-use lockstep_core::Finding;
 use tree_sitter::Node;
 
 use crate::node_utils::{first_named_child, node_text, raw_comparable_children};
-use crate::walk::{walk_regular, WalkCtx};
+use crate::walk::WalkCtx;
 
-/// When a head statement_block contains exactly one extra statement that
-/// matches the defensive-guard shape, drops it via `ignored_head_starts`
-/// and re-runs the regular block walk. Returns `true` when the block was
-/// consumed.
-pub(super) fn try_defensive_null_guard(
-    ctx: &WalkCtx,
-    base: Node,
-    head: Node,
-    findings: &mut Vec<Finding>,
-) -> bool {
-    if !ctx.allow_defensive_null_guard {
+/// Composable variant: scans the head statement_block for any defensive-null
+/// guard and, if found, pushes its byte range to `child_ctx.ignored_head_starts`.
+/// Adjacency to the protected mutation is no longer required — other block
+/// rules (e.g. `non_null_alias_local`) may also strip statements before
+/// `walk_regular` runs.
+///
+/// Returns `true` when a guard was stripped.
+pub(super) fn apply_defensive_null_guard(child_ctx: &mut WalkCtx, base: Node, head: Node) -> bool {
+    if !child_ctx.allow_defensive_null_guard {
         return false;
     }
     if base.kind() != "statement_block" || head.kind() != "statement_block" {
         return false;
     }
-    let base_stmts: Vec<Node> = raw_comparable_children(base)
-        .into_iter()
-        .filter(|n| n.is_named())
-        .collect();
+    let head_src = child_ctx.head_src;
     let head_stmts: Vec<Node> = raw_comparable_children(head)
         .into_iter()
         .filter(|n| n.is_named())
         .collect();
-    if head_stmts.len() != base_stmts.len() + 1 {
-        return false;
-    }
     let guards: Vec<&Node> = head_stmts
         .iter()
-        .filter(|s| is_defensive_null_guard(**s, ctx.head_src))
+        .filter(|s| is_defensive_null_guard(**s, head_src))
         .collect();
     if guards.len() != 1 {
         return false;
     }
-    let mut child_ctx = ctx.clone();
     child_ctx.ignored_head_starts.push(guards[0].start_byte());
-    walk_regular(&child_ctx, base, head, findings);
     true
 }
 

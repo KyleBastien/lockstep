@@ -296,6 +296,9 @@ allow_transient_cache_wrap = false
 allow_request_field_narrowing = false
 allow_async_propagation = false
 allow_defensive_null_guard = false
+allow_non_null_alias_local = false
+allow_defensive_log_guard = false
+defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
 report_all_findings = true
 ignore = [
     "**/*.test.ts",

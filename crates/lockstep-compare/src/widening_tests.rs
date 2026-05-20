@@ -1,11 +1,12 @@
 use lockstep_core::Category;
 
+use crate::compare_options::CompareOptions;
 use crate::test_helpers::{
     assert_equiv, assert_flagged, build_opts, opts_report_all, widening_opts,
     widening_plus_cache_alias_opts, widening_plus_swap_opts, widening_plus_tier1_opts,
     OptsOverrides,
 };
-use crate::walk::{compare, CompareOptions};
+use crate::walk::compare;
 
 #[test]
 fn nullish_widening_equivalences() {
