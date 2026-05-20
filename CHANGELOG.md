@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.9](https://github.com/KyleBastien/lockstep/compare/v0.1.8...v0.1.9) (2026-05-20)
+
+
+### Features
+
+* **compare:** five strict-TS normalization equivalence rules ([#20](https://github.com/KyleBastien/lockstep/issues/20)) ([4e29e14](https://github.com/KyleBastien/lockstep/commit/4e29e14542bcdf73f1a9d9398b934b3b05e7dbc6))
+
 ## [0.1.8](https://github.com/KyleBastien/lockstep/compare/v0.1.7...v0.1.8) (2026-05-19)
 
 
