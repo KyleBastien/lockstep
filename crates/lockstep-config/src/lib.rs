@@ -44,6 +44,7 @@ pub struct Config {
     pub allow_non_null_alias_local: bool,
     pub allow_defensive_log_guard: bool,
     pub defensive_log_guard_methods: Vec<String>,
+    pub allow_dead_defensive_optional_chain_removal: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -76,6 +77,7 @@ impl Default for Config {
             allow_non_null_alias_local: false,
             allow_defensive_log_guard: false,
             defensive_log_guard_methods: default_log_guard_methods(),
+            allow_dead_defensive_optional_chain_removal: false,
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -157,6 +159,7 @@ mod tests {
         assert!(!c.allow_defensive_null_guard);
         assert!(!c.allow_non_null_alias_local);
         assert!(!c.allow_defensive_log_guard);
+        assert!(!c.allow_dead_defensive_optional_chain_removal);
         assert_eq!(
             c.defensive_log_guard_methods,
             vec!["debug", "info", "warn", "error", "trace", "log"]

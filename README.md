@@ -150,6 +150,7 @@ allow_defensive_null_guard = false   # accept head-inserted `if (!cache) { log; 
 allow_non_null_alias_local = false   # accept head-inserted `const LOCAL = CACHE;` after a null guard
 allow_defensive_log_guard = false    # accept head-inserted `if (cache) { LOGGER.METHOD(cache, ...) }` wrap
 defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
+allow_dead_defensive_optional_chain_removal = false # accept head-removed `OBJ?.PROP` when block writes to OBJ prove the `?.` is dead
 report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
@@ -169,6 +170,7 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
   - `allow_defensive_null_guard` — head inserts `if (!cache) { logErr; return LITERAL; }` where base would have thrown. Observable behavior change; default off.
   - `allow_non_null_alias_local` — head extracts `const LOCAL = CACHE;` after a null guard so TS narrowing survives across `await` / method calls. Pure type-system artifact; default off.
   - `allow_defensive_log_guard` — head wraps a logger call in `if (CACHE) { LOGGER.METHOD(CACHE, ...) }`. Method names matched against `defensive_log_guard_methods` (default: `debug`, `info`, `warn`, `error`, `trace`, `log`). Observable behavior change if the logger has side effects on null inputs; default off.
+  - `allow_dead_defensive_optional_chain_removal` — head drops a base `?.` (`OBJ?.PROP` → `OBJ.PROP`) when the enclosing `if`'s body unconditionally writes to `OBJ` (e.g. `OBJ.X = …`, `Object.assign(OBJ, …)`). The write would itself throw if `OBJ` were null/undefined, so the `?.` is dead defensive code. Error location differs at runtime; default off.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
 

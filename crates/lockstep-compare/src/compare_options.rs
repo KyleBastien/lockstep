@@ -62,4 +62,9 @@ pub struct CompareOptions {
     /// Method names treated as logger calls by `allow_defensive_log_guard`.
     /// Defaults to `["debug", "info", "warn", "error", "trace", "log"]`.
     pub defensive_log_guard_methods: Vec<String>,
+    /// Accept a head-removed optional-chain (`OBJ?.PROP` → `OBJ.PROP`) when
+    /// the enclosing block contains an unguarded write to `OBJ` that proves
+    /// the chained object cannot be null/undefined at runtime in base. See
+    /// `dead_defensive_optional_chain` for the deadness-witness rules.
+    pub allow_dead_defensive_optional_chain_removal: bool,
 }

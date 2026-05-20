@@ -28,6 +28,7 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_non_null_alias_local: bool,
     pub(super) allow_defensive_log_guard: bool,
     pub(super) defensive_log_guard_methods: Vec<String>,
+    pub(super) allow_dead_defensive_optional_chain_removal: bool,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -72,6 +73,8 @@ impl<'a> WalkCtx<'a> {
             allow_non_null_alias_local: opts.allow_non_null_alias_local,
             allow_defensive_log_guard: opts.allow_defensive_log_guard,
             defensive_log_guard_methods: opts.defensive_log_guard_methods.clone(),
+            allow_dead_defensive_optional_chain_removal: opts
+                .allow_dead_defensive_optional_chain_removal,
             ignored_base_starts: Vec::new(),
             ignored_head_starts: Vec::new(),
             aliases: Vec::new(),

@@ -21,6 +21,7 @@ pub(crate) struct OptsOverrides {
     pub(crate) non_null_alias_local: bool,
     pub(crate) defensive_log_guard: bool,
     pub(crate) defensive_log_guard_methods: Option<Vec<String>>,
+    pub(crate) dead_defensive_optional_chain_removal: bool,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -47,6 +48,7 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_non_null_alias_local: over.non_null_alias_local,
         allow_defensive_log_guard: over.defensive_log_guard,
         defensive_log_guard_methods: methods,
+        allow_dead_defensive_optional_chain_removal: over.dead_defensive_optional_chain_removal,
     }
 }
 
@@ -111,6 +113,15 @@ opts_fn!(
     cache_alias,
 );
 opts_fn!(defensive_log_guard_opts, defensive_log_guard);
+opts_fn!(
+    dead_defensive_optional_chain_opts,
+    dead_defensive_optional_chain_removal,
+);
+opts_fn!(
+    dead_defensive_plus_cache_alias_opts,
+    dead_defensive_optional_chain_removal,
+    cache_alias,
+);
 
 pub(crate) fn defensive_log_guard_custom_methods_opts(methods: Vec<String>) -> CompareOptions {
     build_opts(OptsOverrides {
