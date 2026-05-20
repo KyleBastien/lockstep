@@ -1,7 +1,9 @@
 use lockstep_core::{Category, Finding};
 use tree_sitter::Node;
 
+use crate::async_propagation::try_callable_async_propagation;
 use crate::findings::{line_of, make_finding};
+use crate::iife_async_wrapper::{iife_async_outcome, walk_iife_async_bodies, IifeAsyncOutcome};
 use crate::node_utils::{find_direct_child, node_text, raw_comparable_children, statement_block};
 use crate::walk::{walk, WalkCtx};
 
@@ -11,7 +13,23 @@ pub(super) fn compare_assigned_function_to_method(
     head_method: Node,
     findings: &mut Vec<Finding>,
 ) {
+    if let IifeAsyncOutcome::Match {
+        base_body,
+        head_inner_body,
+    } = iife_async_outcome(ctx, base_function, head_method)
+    {
+        compare_callable_parameters(ctx, base_function, head_method, findings);
+        if !ctx.report_all && !findings.is_empty() {
+            return;
+        }
+        walk_iife_async_bodies(ctx, base_body, head_inner_body, findings);
+        return;
+    }
+
     if async_flag(base_function, ctx.base_src) != async_flag(head_method, ctx.head_src) {
+        if try_callable_async_propagation(ctx, base_function, head_method, findings) {
+            return;
+        }
         findings.push(callable_flag_mismatch(
             ctx,
             base_function,

@@ -36,6 +36,11 @@ pub struct Config {
     pub allow_array_first_element_or_null_loose: bool,
     pub allow_nullish_widening: bool,
     pub allow_null_undefined_swap: bool,
+    pub allow_iife_async_wrapper: bool,
+    pub allow_transient_cache_wrap: bool,
+    pub allow_request_field_narrowing: bool,
+    pub allow_async_propagation: bool,
+    pub allow_defensive_null_guard: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -53,6 +58,11 @@ impl Default for Config {
             allow_array_first_element_or_null_loose: false,
             allow_nullish_widening: false,
             allow_null_undefined_swap: false,
+            allow_iife_async_wrapper: false,
+            allow_transient_cache_wrap: false,
+            allow_request_field_narrowing: false,
+            allow_async_propagation: false,
+            allow_defensive_null_guard: false,
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -127,6 +137,11 @@ mod tests {
         assert!(!c.allow_array_first_element_or_null_loose);
         assert!(!c.allow_nullish_widening);
         assert!(!c.allow_null_undefined_swap);
+        assert!(!c.allow_iife_async_wrapper);
+        assert!(!c.allow_transient_cache_wrap);
+        assert!(!c.allow_request_field_narrowing);
+        assert!(!c.allow_async_propagation);
+        assert!(!c.allow_defensive_null_guard);
         assert!(c.report_all_findings);
     }
 

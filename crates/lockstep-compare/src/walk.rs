@@ -11,12 +11,16 @@ use tree_sitter::{Node, Parser, Tree};
 
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
+use crate::async_propagation::{maybe_unwrap_await, try_callable_async_propagation};
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
+use crate::defensive_null_guard::try_defensive_null_guard;
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::optional_chain::handle_optional_chain;
+use crate::request_field_narrowing::{is_narrowed_request_field_pair, try_request_field_narrowing};
 use crate::tokens::canonical;
+use crate::transient_cache_wrap::{is_transient_local_pair, try_transient_cache_wrap};
 
 pub struct CompareOptions {
     pub path: PathBuf,
@@ -41,6 +45,27 @@ pub struct CompareOptions {
     /// when widening is on, because `=== null` / `=== undefined` are
     /// observationally distinct.
     pub allow_null_undefined_swap: bool,
+    /// Treat a sync head method whose body is `return (async () => BODY)();`
+    /// as equivalent to a base async callable whose body is BODY. Lets TS
+    /// migrations carry phantom-branded return types that block bare `async`.
+    pub allow_iife_async_wrapper: bool,
+    /// Accept the two-statement base pattern `CACHE = X; CACHE = unwrap(CACHE);`
+    /// as equivalent to head `const LOCAL = X; CACHE = unwrap(LOCAL);` when
+    /// LOCAL is a fresh local used only inside the unwrap. Composes with
+    /// `allow_closure_cache_field_alias`.
+    pub allow_transient_cache_wrap: bool,
+    /// Accept a head `const IDENT = "PROP" in OBJ && typeof OBJ.PROP === T ? OBJ.PROP : undefined;`
+    /// extraction, treating later `IDENT` uses as equivalent to base
+    /// `OBJ.PROP` accesses in the same scope.
+    pub allow_request_field_narrowing: bool,
+    /// Accept head async + `await EXPR` where base is sync + bare `EXPR`,
+    /// provided at least one new `await` appears on head. Directional: never
+    /// the reverse.
+    pub allow_async_propagation: bool,
+    /// Accept a head-inserted `if (!CACHE) { logCall(...); return LIT; }`
+    /// guard between two base statements. Observably changes behavior —
+    /// stays off by default.
+    pub allow_defensive_null_guard: bool,
 }
 
 pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Finding> {
@@ -64,22 +89,7 @@ pub fn compare(base_src: &str, head_src: &str, opts: &CompareOptions) -> Vec<Fin
         None => return vec![parse_error(&opts.path, false)],
     };
 
-    let ctx = WalkCtx {
-        base_src,
-        head_src,
-        path: &opts.path,
-        report_all: opts.report_all,
-        allow_constructor_assigned_method_equivalence: opts
-            .allow_constructor_assigned_method_equivalence,
-        allow_closure_cache_field_alias: opts.allow_closure_cache_field_alias,
-        allow_array_first_element_or_null: opts.allow_array_first_element_or_null,
-        allow_array_first_element_or_null_loose: opts.allow_array_first_element_or_null_loose,
-        allow_nullish_widening: opts.allow_nullish_widening,
-        allow_null_undefined_swap: opts.allow_null_undefined_swap,
-        ignored_base_starts: Vec::new(),
-        ignored_head_starts: Vec::new(),
-        aliases: Vec::new(),
-    };
+    let ctx = WalkCtx::from_opts(base_src, head_src, opts);
     let mut findings = Vec::new();
     walk(
         &ctx,
@@ -107,58 +117,18 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
     )
 }
 
-#[derive(Clone)]
-pub(super) struct WalkCtx<'a> {
-    pub(super) base_src: &'a str,
-    pub(super) head_src: &'a str,
-    pub(super) path: &'a Path,
-    pub(super) report_all: bool,
-    allow_constructor_assigned_method_equivalence: bool,
-    pub(super) allow_closure_cache_field_alias: bool,
-    pub(super) allow_array_first_element_or_null: bool,
-    pub(super) allow_array_first_element_or_null_loose: bool,
-    pub(super) allow_nullish_widening: bool,
-    pub(super) allow_null_undefined_swap: bool,
-    pub(super) ignored_base_starts: Vec<usize>,
-    pub(super) ignored_head_starts: Vec<usize>,
-    pub(super) aliases: Vec<CacheAlias>,
-}
-
-impl<'a> WalkCtx<'a> {
-    /// Clone with accumulator state cleared. Config flags and sources preserved.
-    /// For sub-comparisons whose findings should not feed back into the outer pass.
-    pub(super) fn scratch(&self) -> Self {
-        let mut s = self.clone();
-        s.ignored_base_starts.clear();
-        s.ignored_head_starts.clear();
-        s.aliases.clear();
-        s
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct CacheAlias {
-    pub(super) base_name: String,
-    pub(super) head_property: String,
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum Side {
-    Base,
-    Head,
-}
+pub(super) use crate::walk_ctx::{
+    CacheAlias, NarrowedRequestField, Side, TransientLocal, WalkCtx,
+};
 
 pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
     if !ctx.report_all && !findings.is_empty() {
         return;
     }
-    if is_cache_alias_pair(ctx, base, head) {
+    if leaf_alias_consumed(ctx, base, head) {
         return;
     }
-    if is_array_first_pair(ctx, base, head) {
-        return;
-    }
-    if is_nullish_widening_pair(ctx, base, head) {
+    if block_rule_consumed(ctx, base, head, findings) {
         return;
     }
     if base.kind() != head.kind() {
@@ -167,12 +137,37 @@ pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Fin
     }
     if ctx.allow_constructor_assigned_method_equivalence
         && base.kind() == "class_body"
-        && head.kind() == "class_body"
         && walk_class_body(ctx, base, head, findings)
     {
         return;
     }
     walk_regular(ctx, base, head, findings);
+}
+
+/// Leaf-level pre-empts that resolve a pair via a registered alias or a
+/// purely structural equivalence — no body walk required.
+fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
+    is_cache_alias_pair(ctx, base, head)
+        || is_transient_local_pair(ctx, base, head)
+        || is_narrowed_request_field_pair(ctx, base, head)
+        || is_array_first_pair(ctx, base, head)
+        || is_nullish_widening_pair(ctx, base, head)
+}
+
+/// Block- and callable-scoped pre-empts that may consume the pair by running
+/// their own sub-walk and feeding findings back to the outer pass.
+fn block_rule_consumed(
+    ctx: &WalkCtx,
+    base: Node,
+    head: Node,
+    findings: &mut Vec<Finding>,
+) -> bool {
+    try_transient_cache_wrap(ctx, base, head, findings)
+        || try_request_field_narrowing(ctx, base, head, findings)
+        || try_defensive_null_guard(ctx, base, head, findings)
+        || maybe_unwrap_await(ctx, base, head, findings)
+        || (is_method_definition_pair(base, head)
+            && try_callable_async_propagation(ctx, base, head, findings))
 }
 
 pub(super) fn walk_regular(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
@@ -376,6 +371,10 @@ fn has_filtered_children(ctx: &WalkCtx, node: Node, side: Side) -> bool {
     raw_comparable_children(node)
         .into_iter()
         .any(|child| is_ignored(ctx, child, side))
+}
+
+fn is_method_definition_pair(base: Node, head: Node) -> bool {
+    base.kind() == "method_definition" && head.kind() == "method_definition"
 }
 
 fn is_atomic(kind: &str) -> bool {

@@ -16,7 +16,7 @@
 use tree_sitter::Node;
 
 use crate::node_utils::{compact_node_text, first_named_child};
-use crate::walk::WalkCtx;
+use crate::walk::{walk, WalkCtx};
 
 pub(super) fn is_array_first_pair(ctx: &WalkCtx, base: Node, head: Node) -> bool {
     let base = unwrap_parens(base);
@@ -24,14 +24,10 @@ pub(super) fn is_array_first_pair(ctx: &WalkCtx, base: Node, head: Node) -> bool
     let Some(target) = nullish_null_target(head, ctx.head_src) else {
         return false;
     };
-    if ctx.allow_array_first_element_or_null
-        && tier1_base_matches(base, &target, ctx.base_src, ctx.head_src)
-    {
+    if ctx.allow_array_first_element_or_null && tier1_base_matches(ctx, base, &target) {
         return true;
     }
-    if ctx.allow_array_first_element_or_null_loose
-        && tier2_base_matches(base, &target, ctx.base_src, ctx.head_src)
-    {
+    if ctx.allow_array_first_element_or_null_loose && tier2_base_matches(ctx, base, &target) {
         return true;
     }
     false
@@ -69,7 +65,7 @@ fn binary_null_fallback_lhs<'a>(node: Node<'a>, op: &str, src: &str) -> Option<N
     Some(left)
 }
 
-fn tier1_base_matches(base: Node, head: &HeadTarget, base_src: &str, head_src: &str) -> bool {
+fn tier1_base_matches(ctx: &WalkCtx, base: Node, head: &HeadTarget) -> bool {
     if base.kind() != "ternary_expression" {
         return false;
     }
@@ -79,27 +75,21 @@ fn tier1_base_matches(base: Node, head: &HeadTarget, base_src: &str, head_src: &
     let Some(consequence) = base.child_by_field_name("consequence") else {
         return false;
     };
-    if !consequence_matches(unwrap_parens(consequence), head.object, base_src, head_src) {
+    if !consequence_matches(ctx, unwrap_parens(consequence), head.object) {
         return false;
     }
     let Some(condition) = base.child_by_field_name("condition") else {
         return false;
     };
-    condition_matches(
-        unwrap_parens(condition),
-        head.object,
-        head.optional,
-        base_src,
-        head_src,
-    )
+    condition_matches(ctx, unwrap_parens(condition), head.object, head.optional)
 }
 
-fn tier2_base_matches(base: Node, head: &HeadTarget, base_src: &str, head_src: &str) -> bool {
-    if let Some(left) = or_null_lhs(base, base_src) {
-        return subscript_matches(left, head, base_src, head_src);
+fn tier2_base_matches(ctx: &WalkCtx, base: Node, head: &HeadTarget) -> bool {
+    if let Some(left) = or_null_lhs(base, ctx.base_src) {
+        return subscript_matches(ctx, left, head);
     }
-    if base.kind() == "subscript_expression" && is_zero_index_subscript(base, base_src) {
-        return subscript_matches(base, head, base_src, head_src);
+    if base.kind() == "subscript_expression" && is_zero_index_subscript(base, ctx.base_src) {
+        return subscript_matches(ctx, base, head);
     }
     false
 }
@@ -108,79 +98,65 @@ fn or_null_lhs<'a>(node: Node<'a>, src: &str) -> Option<Node<'a>> {
     binary_null_fallback_lhs(node, "||", src)
 }
 
-fn subscript_matches(node: Node, head: &HeadTarget, base_src: &str, head_src: &str) -> bool {
+fn subscript_matches(ctx: &WalkCtx, node: Node, head: &HeadTarget) -> bool {
     let is_optional = node.child_by_field_name("optional_chain").is_some();
     if is_optional != head.optional {
         return false;
     }
-    consequence_matches(node, head.object, base_src, head_src)
+    consequence_matches(ctx, node, head.object)
 }
 
-fn consequence_matches(node: Node, expected_obj: Node, base_src: &str, head_src: &str) -> bool {
-    if !is_zero_index_subscript(node, base_src) {
+fn consequence_matches(ctx: &WalkCtx, node: Node, expected_obj: Node) -> bool {
+    if !is_zero_index_subscript(node, ctx.base_src) {
         return false;
     }
     let Some(object) = node.child_by_field_name("object") else {
         return false;
     };
-    exprs_equal(unwrap_parens(object), base_src, expected_obj, head_src)
+    exprs_equivalent(ctx, unwrap_parens(object), expected_obj)
 }
 
-fn condition_matches(
-    cond: Node,
-    expected_obj: Node,
-    expect_optional: bool,
-    base_src: &str,
-    head_src: &str,
-) -> bool {
+fn condition_matches(ctx: &WalkCtx, cond: Node, expected_obj: Node, expect_optional: bool) -> bool {
     if cond.kind() != "binary_expression" {
         return false;
     }
     if operator_is(cond, ">") {
-        return length_gt_zero(cond, expected_obj, expect_optional, base_src, head_src);
+        return length_gt_zero(ctx, cond, expected_obj, expect_optional);
     }
     if operator_is(cond, "&&") {
-        return and_length_check(cond, expected_obj, expect_optional, base_src, head_src);
+        return and_length_check(ctx, cond, expected_obj, expect_optional);
     }
     false
 }
 
 fn length_gt_zero(
+    ctx: &WalkCtx,
     cond: Node,
     expected_obj: Node,
     expect_optional: bool,
-    base_src: &str,
-    head_src: &str,
 ) -> bool {
     let Some(right) = cond.child_by_field_name("right") else {
         return false;
     };
-    if !is_literal_zero(unwrap_parens(right), base_src) {
+    if !is_literal_zero(unwrap_parens(right), ctx.base_src) {
         return false;
     }
     let Some(left) = cond.child_by_field_name("left") else {
         return false;
     };
-    is_length_access(
-        unwrap_parens(left),
-        expected_obj,
-        expect_optional,
-        base_src,
-        head_src,
-    )
+    is_length_access(ctx, unwrap_parens(left), expected_obj, expect_optional)
 }
 
 fn and_length_check(
+    ctx: &WalkCtx,
     cond: Node,
     expected_obj: Node,
     expect_optional: bool,
-    base_src: &str,
-    head_src: &str,
 ) -> bool {
     let Some(left) = cond.child_by_field_name("left") else {
         return false;
     };
-    if !exprs_equal(unwrap_parens(left), base_src, expected_obj, head_src) {
+    if !exprs_equivalent(ctx, unwrap_parens(left), expected_obj) {
         return false;
     }
     let Some(right) = cond.child_by_field_name("right") else {
@@ -190,15 +166,14 @@ fn and_length_check(
     if right.kind() != "binary_expression" || !operator_is(right, ">") {
         return false;
     }
-    length_gt_zero(right, expected_obj, expect_optional, base_src, head_src)
+    length_gt_zero(ctx, right, expected_obj, expect_optional)
 }
 
 fn is_length_access(
+    ctx: &WalkCtx,
     node: Node,
     expected_obj: Node,
     expect_optional: bool,
-    base_src: &str,
-    head_src: &str,
 ) -> bool {
     if node.kind() != "member_expression" {
         return false;
@@ -206,7 +181,7 @@ fn is_length_access(
     let Some(property) = node.child_by_field_name("property") else {
         return false;
     };
-    if property.utf8_text(base_src.as_bytes()).unwrap_or("") != "length" {
+    if property.utf8_text(ctx.base_src.as_bytes()).unwrap_or("") != "length" {
         return false;
     }
     let is_optional = node.child_by_field_name("optional_chain").is_some();
@@ -216,7 +191,7 @@ fn is_length_access(
     let Some(object) = node.child_by_field_name("object") else {
         return false;
     };
-    exprs_equal(unwrap_parens(object), base_src, expected_obj, head_src)
+    exprs_equivalent(ctx, unwrap_parens(object), expected_obj)
 }
 
 fn is_zero_index_subscript(node: Node, src: &str) -> bool {
@@ -240,8 +215,17 @@ fn is_literal_zero(node: Node, src: &str) -> bool {
     node.kind() == "number" && node.utf8_text(src.as_bytes()).unwrap_or("") == "0"
 }
 
-fn exprs_equal(a: Node, a_src: &str, b: Node, b_src: &str) -> bool {
-    compact_node_text(a, a_src) == compact_node_text(b, b_src)
+/// Fast path: byte-equal after whitespace strip. Walker fallback re-enters
+/// `walk()` against the live `ctx`, letting cache aliases, transient locals,
+/// and other equivalences feed in. Findings stay isolated to the local vec
+/// so the outer pass is unaffected.
+fn exprs_equivalent(ctx: &WalkCtx, a: Node, b: Node) -> bool {
+    if compact_node_text(a, ctx.base_src) == compact_node_text(b, ctx.head_src) {
+        return true;
+    }
+    let mut findings = Vec::new();
+    walk(ctx, a, b, &mut findings);
+    findings.is_empty()
 }
 
 fn operator_is(binary: Node, op: &str) -> bool {
