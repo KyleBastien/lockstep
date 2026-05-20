@@ -103,11 +103,7 @@ opts_fn!(
 opts_fn!(request_narrowing_opts, request_field_narrowing);
 opts_fn!(async_propagation_opts, async_propagation);
 opts_fn!(defensive_guard_opts, defensive_null_guard);
-opts_fn!(
-    non_null_alias_opts,
-    non_null_alias_local,
-    cache_alias,
-);
+opts_fn!(non_null_alias_opts, non_null_alias_local, cache_alias,);
 opts_fn!(
     non_null_alias_plus_defensive_guard_opts,
     non_null_alias_local,

@@ -21,7 +21,9 @@ use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_childre
 use crate::non_null_alias_local::{apply_non_null_alias_local, is_non_null_alias_pair};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
 use crate::optional_chain::handle_optional_chain;
-use crate::request_field_narrowing::{apply_request_field_narrowing, is_narrowed_request_field_pair};
+use crate::request_field_narrowing::{
+    apply_request_field_narrowing, is_narrowed_request_field_pair,
+};
 use crate::tokens::canonical;
 use crate::transient_cache_wrap::{apply_transient_cache_wrap, is_transient_local_pair};
 

@@ -31,11 +31,7 @@ use crate::walk::{NonNullAliasLocal, WalkCtx};
 /// block, validates a preceding null guard for `CACHE` and that `LOCAL` is
 /// read-only in the block, then registers each alias onto `child_ctx`.
 /// Returns `true` when at least one alias was registered.
-pub(super) fn apply_non_null_alias_local(
-    child_ctx: &mut WalkCtx,
-    base: Node,
-    head: Node,
-) -> bool {
+pub(super) fn apply_non_null_alias_local(child_ctx: &mut WalkCtx, base: Node, head: Node) -> bool {
     if !child_ctx.allow_non_null_alias_local {
         return false;
     }

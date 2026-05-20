@@ -47,11 +47,7 @@ pub(super) fn is_transient_local_pair(ctx: &WalkCtx, base: Node, head: Node) -> 
 /// block pair and, if matched, pushes its ignored byte ranges + alias onto
 /// `child_ctx`. Caller is responsible for running `walk_regular` afterwards.
 /// Returns `true` when the pattern matched.
-pub(super) fn apply_transient_cache_wrap(
-    child_ctx: &mut WalkCtx,
-    base: Node,
-    head: Node,
-) -> bool {
+pub(super) fn apply_transient_cache_wrap(child_ctx: &mut WalkCtx, base: Node, head: Node) -> bool {
     if !child_ctx.allow_transient_cache_wrap {
         return false;
     }
