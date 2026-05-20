@@ -193,6 +193,33 @@ pub(super) fn walk_optional_chain_more_defensive(
     );
 }
 
+/// Mirror of [`walk_optional_chain_more_defensive`] used when the head has
+/// *removed* a base `?.` and the dead-defensive-optional-chain rule has
+/// accepted the removal as equivalent. Filters the `optional_chain` child
+/// from the base side so the remaining object/property children walk in
+/// lockstep with the head's regular member access.
+pub(super) fn walk_optional_chain_less_defensive(
+    ctx: &WalkCtx,
+    base: Node,
+    head: Node,
+    findings: &mut Vec<Finding>,
+) {
+    let base_children: Vec<Node> = comparable_children(ctx, base, Side::Base)
+        .into_iter()
+        .filter(|n| n.kind() != "optional_chain")
+        .collect();
+    let head_children = comparable_children(ctx, head, Side::Head);
+    walk_collected(
+        ctx,
+        NodePair { base, head },
+        ChildPair {
+            base: base_children,
+            head: head_children,
+        },
+        findings,
+    );
+}
+
 pub(super) struct NodePair<'a> {
     pub(super) base: Node<'a>,
     pub(super) head: Node<'a>,

@@ -8,8 +8,11 @@
 use lockstep_core::Finding;
 use tree_sitter::Node;
 
+use crate::dead_defensive_optional_chain::is_dead_defensive_chain;
 use crate::findings::less_defensive_optional_chain;
-use crate::walk::{walk_optional_chain_more_defensive, WalkCtx};
+use crate::walk::{
+    walk_optional_chain_less_defensive, walk_optional_chain_more_defensive, WalkCtx,
+};
 
 pub(super) enum OptionalChainOutcome {
     Same,
@@ -47,6 +50,10 @@ pub(super) fn handle_optional_chain(
     }
     match optional_chain_outcome(base, head) {
         OptionalChainOutcome::LessDefensive => {
+            if is_dead_defensive_chain(ctx, base, head) {
+                walk_optional_chain_less_defensive(ctx, base, head, findings);
+                return true;
+            }
             findings.push(less_defensive_optional_chain(ctx, base, head));
             true
         }

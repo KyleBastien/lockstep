@@ -95,6 +95,8 @@ fn check_pair(
         allow_non_null_alias_local: config.allow_non_null_alias_local,
         allow_defensive_log_guard: config.allow_defensive_log_guard,
         defensive_log_guard_methods: config.defensive_log_guard_methods.clone(),
+        allow_dead_defensive_optional_chain_removal: config
+            .allow_dead_defensive_optional_chain_removal,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)

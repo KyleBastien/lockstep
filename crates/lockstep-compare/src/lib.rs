@@ -7,6 +7,7 @@ mod async_propagation;
 mod callable_equivalence;
 mod class_equivalence;
 mod compare_options;
+mod dead_defensive_optional_chain;
 mod defensive_log_guard;
 mod defensive_null_guard;
 mod findings;
@@ -28,6 +29,8 @@ pub use walk::compare;
 
 #[cfg(test)]
 mod async_propagation_tests;
+#[cfg(test)]
+mod dead_defensive_optional_chain_tests;
 #[cfg(test)]
 mod defensive_log_guard_tests;
 #[cfg(test)]
