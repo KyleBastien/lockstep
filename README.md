@@ -142,6 +142,11 @@ allow_constructor_assigned_method_equivalence = true
 allow_closure_cache_field_alias = false
 allow_nullish_widening = false       # accept EXPR ↔ EXPR ?? null|undefined
 allow_null_undefined_swap = false    # sub-flag: also accept bare null ↔ undefined
+allow_iife_async_wrapper = false     # accept sync method that wraps async IIFE
+allow_transient_cache_wrap = false   # accept `const LOCAL = X; CACHE = unwrap(LOCAL);` pattern
+allow_request_field_narrowing = false # accept `const X = "p" in O && typeof O.p === "T" ? O.p : undefined;` extraction
+allow_async_propagation = false      # accept sync→async + await injection (observable change)
+allow_defensive_null_guard = false   # accept head-inserted `if (!cache) { log; return ERR; }` (observable change)
 report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
@@ -153,6 +158,12 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 - Closure cache variables converted to instance fields are reported by default; opt in via `allow_closure_cache_field_alias = true` after manual review.
 - Nullish widening (`EXPR` rewritten as `EXPR ?? null` or `EXPR ?? undefined` to satisfy a `T | null` field/return type) is reported by default; opt in via `allow_nullish_widening = true`. The rule is directional — head must be the widener.
 - Bare `null` ↔ `undefined` literal swaps are gated separately on `allow_null_undefined_swap = true` (which itself requires `allow_nullish_widening`), because `=== null` / `=== undefined` are observationally distinct.
+- Strict-TS structural reshapes are gated behind individual opt-in flags:
+  - `allow_iife_async_wrapper` — head method returns `(async () => BODY)()` to satisfy a branded `Promise<X>` return type.
+  - `allow_transient_cache_wrap` — head extracts a fresh local before assigning the narrowed cache field.
+  - `allow_request_field_narrowing` — head extracts a narrowed local via `"prop" in obj && typeof obj.prop === "T" ? obj.prop : undefined`.
+  - `allow_async_propagation` — head adds `async` + `await` because a subclass override widened the return type. Observable behavior change; default off.
+  - `allow_defensive_null_guard` — head inserts `if (!cache) { logErr; return LITERAL; }` where base would have thrown. Observable behavior change; default off.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
 

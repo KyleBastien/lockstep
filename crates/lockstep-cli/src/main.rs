@@ -291,6 +291,11 @@ allow_array_first_element_or_null = false
 allow_array_first_element_or_null_loose = false
 allow_nullish_widening = false
 allow_null_undefined_swap = false
+allow_iife_async_wrapper = false
+allow_transient_cache_wrap = false
+allow_request_field_narrowing = false
+allow_async_propagation = false
+allow_defensive_null_guard = false
 report_all_findings = true
 ignore = [
     "**/*.test.ts",

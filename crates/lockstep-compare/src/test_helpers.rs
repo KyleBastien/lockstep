@@ -12,6 +12,11 @@ pub(crate) struct OptsOverrides {
     pub(crate) array_first_tier2: bool,
     pub(crate) nullish_widening: bool,
     pub(crate) null_undefined_swap: bool,
+    pub(crate) iife_async_wrapper: bool,
+    pub(crate) transient_cache_wrap: bool,
+    pub(crate) request_field_narrowing: bool,
+    pub(crate) async_propagation: bool,
+    pub(crate) defensive_null_guard: bool,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -24,87 +29,70 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_array_first_element_or_null_loose: over.array_first_tier2,
         allow_nullish_widening: over.nullish_widening,
         allow_null_undefined_swap: over.null_undefined_swap,
+        allow_iife_async_wrapper: over.iife_async_wrapper,
+        allow_transient_cache_wrap: over.transient_cache_wrap,
+        allow_request_field_narrowing: over.request_field_narrowing,
+        allow_async_propagation: over.async_propagation,
+        allow_defensive_null_guard: over.defensive_null_guard,
     }
 }
 
+/// Generates a named `fn` returning `CompareOptions` with `report_all = true`
+/// plus the listed override fields set to `true`. Replaces the dozen
+/// single-purpose builders the test suite previously open-coded.
+macro_rules! opts_fn {
+    ($name:ident $(, $f:ident)* $(,)?) => {
+        pub(crate) fn $name() -> CompareOptions {
+            build_opts(OptsOverrides {
+                report_all: true,
+                $($f: true,)*
+                ..OptsOverrides::default()
+            })
+        }
+    };
+}
+
+opts_fn!(opts_report_all);
+opts_fn!(tier1_opts, array_first_tier1);
+opts_fn!(tier2_opts, array_first_tier1, array_first_tier2);
+opts_fn!(cache_alias_opts, cache_alias);
+opts_fn!(cache_alias_plus_tier1_opts, cache_alias, array_first_tier1);
+opts_fn!(widening_opts, nullish_widening);
+opts_fn!(
+    widening_plus_swap_opts,
+    nullish_widening,
+    null_undefined_swap
+);
+opts_fn!(
+    widening_plus_tier1_opts,
+    nullish_widening,
+    array_first_tier1
+);
+opts_fn!(
+    widening_plus_cache_alias_opts,
+    nullish_widening,
+    cache_alias
+);
+opts_fn!(iife_async_opts, iife_async_wrapper);
+opts_fn!(
+    iife_async_plus_cache_alias_opts,
+    iife_async_wrapper,
+    cache_alias
+);
+opts_fn!(transient_cache_opts, transient_cache_wrap, cache_alias);
+opts_fn!(
+    transient_cache_plus_tier1_opts,
+    transient_cache_wrap,
+    cache_alias,
+    array_first_tier1,
+    nullish_widening
+);
+opts_fn!(request_narrowing_opts, request_field_narrowing);
+opts_fn!(async_propagation_opts, async_propagation);
+opts_fn!(defensive_guard_opts, defensive_null_guard);
+
 pub(crate) fn opts() -> CompareOptions {
     build_opts(OptsOverrides::default())
-}
-
-pub(crate) fn opts_report_all() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn tier1_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        array_first_tier1: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn tier2_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        array_first_tier1: true,
-        array_first_tier2: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn cache_alias_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        cache_alias: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn cache_alias_plus_tier1_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        cache_alias: true,
-        array_first_tier1: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn widening_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        nullish_widening: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn widening_plus_swap_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        nullish_widening: true,
-        null_undefined_swap: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn widening_plus_tier1_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        nullish_widening: true,
-        array_first_tier1: true,
-        ..OptsOverrides::default()
-    })
-}
-
-pub(crate) fn widening_plus_cache_alias_opts() -> CompareOptions {
-    build_opts(OptsOverrides {
-        report_all: true,
-        nullish_widening: true,
-        cache_alias: true,
-        ..OptsOverrides::default()
-    })
 }
 
 pub(crate) fn compare_exprs(
@@ -118,11 +106,31 @@ pub(crate) fn compare_exprs(
 }
 
 pub(crate) fn assert_equiv(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
-    let f = compare_exprs(base_expr, head_expr, opts);
-    assert!(f.is_empty(), "expected no findings, got: {:?}", f);
+    expect_empty(&compare_exprs(base_expr, head_expr, opts));
 }
 
 pub(crate) fn assert_flagged(base_expr: &str, head_expr: &str, opts: &CompareOptions) {
-    let f = compare_exprs(base_expr, head_expr, opts);
-    assert!(!f.is_empty(), "expected divergence to be flagged");
+    expect_nonempty(&compare_exprs(base_expr, head_expr, opts));
+}
+
+/// Like [`assert_equiv`] but feeds the inputs verbatim — no `let v = …`
+/// wrapping. Use for class- or block-level fixtures.
+pub(crate) fn assert_equiv_raw(base: &str, head: &str, opts: &CompareOptions) {
+    expect_empty(&compare(base, head, opts));
+}
+
+pub(crate) fn assert_flagged_raw(base: &str, head: &str, opts: &CompareOptions) {
+    expect_nonempty(&compare(base, head, opts));
+}
+
+fn expect_empty(findings: &[Finding]) {
+    assert!(
+        findings.is_empty(),
+        "expected no findings, got: {:?}",
+        findings
+    );
+}
+
+fn expect_nonempty(findings: &[Finding]) {
+    assert!(!findings.is_empty(), "expected divergence to be flagged");
 }

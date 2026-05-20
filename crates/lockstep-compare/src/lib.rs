@@ -3,21 +3,37 @@
 
 mod align;
 mod array_first_equivalence;
+mod async_propagation;
 mod callable_equivalence;
 mod class_equivalence;
+mod defensive_null_guard;
 mod findings;
+mod iife_async_wrapper;
 mod node_utils;
 mod nullish_widening_equivalence;
 mod optional_chain;
+mod request_field_narrowing;
+mod transient_cache_wrap;
 
 pub mod report;
 pub mod tokens;
 pub mod walk;
+mod walk_ctx;
 
 pub use walk::{compare, CompareOptions};
 
 #[cfg(test)]
+mod async_propagation_tests;
+#[cfg(test)]
+mod defensive_null_guard_tests;
+#[cfg(test)]
+mod iife_async_wrapper_tests;
+#[cfg(test)]
+mod request_field_narrowing_tests;
+#[cfg(test)]
 mod test_helpers;
+#[cfg(test)]
+mod transient_cache_wrap_tests;
 #[cfg(test)]
 mod walk_tests;
 #[cfg(test)]

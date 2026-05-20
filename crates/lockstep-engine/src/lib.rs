@@ -87,6 +87,11 @@ fn check_pair(
         allow_array_first_element_or_null_loose: config.allow_array_first_element_or_null_loose,
         allow_nullish_widening: config.allow_nullish_widening,
         allow_null_undefined_swap: config.allow_null_undefined_swap,
+        allow_iife_async_wrapper: config.allow_iife_async_wrapper,
+        allow_transient_cache_wrap: config.allow_transient_cache_wrap,
+        allow_request_field_narrowing: config.allow_request_field_narrowing,
+        allow_async_propagation: config.allow_async_propagation,
+        allow_defensive_null_guard: config.allow_defensive_null_guard,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
