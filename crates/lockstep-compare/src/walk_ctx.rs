@@ -29,6 +29,10 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_defensive_log_guard: bool,
     pub(super) defensive_log_guard_methods: Vec<String>,
     pub(super) allow_dead_defensive_optional_chain_removal: bool,
+    pub(super) allow_unknown_catch_narrowing: bool,
+    pub(super) allow_promise_settled_discrimination: bool,
+    pub(super) allow_pure_narrowing_helper: bool,
+    pub(super) narrowing_helpers: Vec<String>,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -41,6 +45,14 @@ pub(super) struct WalkCtx<'a> {
     /// Head locals captured as `const LOCAL = CACHE;` after a null guard.
     /// Populated by `non_null_alias_local`. Resolved at leaf-pair compare.
     pub(super) non_null_aliases: Vec<NonNullAliasLocal>,
+    /// Head locals captured as `const LOCAL = ERR instanceof Error ? ERR.PROP : <fallback>;`
+    /// inside a `catch` clause. Populated by `unknown_catch_narrowing`.
+    /// Subsequent head `LOCAL` uses compare equal to base `ERR.PROP` accesses.
+    pub(super) catch_narrowed_locals: Vec<CatchNarrowedLocal>,
+    /// Names of head top-level `function HELPER(...)` declarations whose
+    /// identifier is listed in `narrowing_helpers`. Populated once before the
+    /// main walk by `pure_narrowing_helper::register_narrowing_helper_declarations`.
+    pub(super) recognized_narrowing_helpers: Vec<String>,
     /// Active for the body of a callable where `async_propagation` accepted
     /// a base-sync / head-async divergence. Allows `await EXPR` on head where
     /// base has bare `EXPR`.
@@ -75,12 +87,18 @@ impl<'a> WalkCtx<'a> {
             defensive_log_guard_methods: opts.defensive_log_guard_methods.clone(),
             allow_dead_defensive_optional_chain_removal: opts
                 .allow_dead_defensive_optional_chain_removal,
+            allow_unknown_catch_narrowing: opts.allow_unknown_catch_narrowing,
+            allow_promise_settled_discrimination: opts.allow_promise_settled_discrimination,
+            allow_pure_narrowing_helper: opts.allow_pure_narrowing_helper,
+            narrowing_helpers: opts.narrowing_helpers.clone(),
             ignored_base_starts: Vec::new(),
             ignored_head_starts: Vec::new(),
             aliases: Vec::new(),
             transient_locals: Vec::new(),
             narrowed_request_fields: Vec::new(),
             non_null_aliases: Vec::new(),
+            catch_narrowed_locals: Vec::new(),
+            recognized_narrowing_helpers: Vec::new(),
             async_propagation_active: false,
         }
     }
@@ -95,6 +113,7 @@ impl<'a> WalkCtx<'a> {
         s.transient_locals.clear();
         s.narrowed_request_fields.clear();
         s.non_null_aliases.clear();
+        s.catch_narrowed_locals.clear();
         s.async_propagation_active = false;
         s
     }
@@ -138,6 +157,23 @@ pub(super) struct NonNullAliasLocal {
     /// When the cache is `this.PROP`, the property name (used to resolve
     /// base bare-identifier references via `allow_closure_cache_field_alias`).
     pub(super) head_this_property: Option<String>,
+}
+
+/// A head-side local `LOCAL` declared as
+/// `const LOCAL = ERR instanceof Error ? ERR.PROP : <fallback>;` inside a
+/// catch block. Subsequent head `LOCAL` reads compare equal to base
+/// `ERR.PROP` member accesses for the scope of the enclosing block.
+/// Registered by `allow_unknown_catch_narrowing`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct CatchNarrowedLocal {
+    pub(super) head_local: String,
+    /// Catch-clause binding identifier name (e.g. `err`). The head-side
+    /// ternary references this; the base-side member expression's object
+    /// text must match.
+    pub(super) err_name: String,
+    /// Property name accessed on `err` (e.g. `message`). The base member
+    /// expression's property text must match.
+    pub(super) property: String,
 }
 
 #[derive(Clone, Copy)]

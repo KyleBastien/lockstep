@@ -22,6 +22,10 @@ pub(crate) struct OptsOverrides {
     pub(crate) defensive_log_guard: bool,
     pub(crate) defensive_log_guard_methods: Option<Vec<String>>,
     pub(crate) dead_defensive_optional_chain_removal: bool,
+    pub(crate) unknown_catch_narrowing: bool,
+    pub(crate) promise_settled_discrimination: bool,
+    pub(crate) pure_narrowing_helper: bool,
+    pub(crate) narrowing_helpers: Option<Vec<String>>,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -49,6 +53,10 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_defensive_log_guard: over.defensive_log_guard,
         defensive_log_guard_methods: methods,
         allow_dead_defensive_optional_chain_removal: over.dead_defensive_optional_chain_removal,
+        allow_unknown_catch_narrowing: over.unknown_catch_narrowing,
+        allow_promise_settled_discrimination: over.promise_settled_discrimination,
+        allow_pure_narrowing_helper: over.pure_narrowing_helper,
+        narrowing_helpers: over.narrowing_helpers.unwrap_or_default(),
     }
 }
 
@@ -122,12 +130,32 @@ opts_fn!(
     dead_defensive_optional_chain_removal,
     cache_alias,
 );
+opts_fn!(unknown_catch_narrowing_opts, unknown_catch_narrowing);
+opts_fn!(
+    promise_settled_discrimination_opts,
+    promise_settled_discrimination,
+);
+opts_fn!(
+    promise_settled_plus_non_null_alias_opts,
+    promise_settled_discrimination,
+    non_null_alias_local,
+    cache_alias,
+);
 
 pub(crate) fn defensive_log_guard_custom_methods_opts(methods: Vec<String>) -> CompareOptions {
     build_opts(OptsOverrides {
         report_all: true,
         defensive_log_guard: true,
         defensive_log_guard_methods: Some(methods),
+        ..OptsOverrides::default()
+    })
+}
+
+pub(crate) fn pure_narrowing_helper_opts(helpers: Vec<String>) -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(helpers),
         ..OptsOverrides::default()
     })
 }
