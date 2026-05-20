@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use lockstep_core::Finding;
 
-use crate::walk::{compare, CompareOptions};
+use crate::compare_options::CompareOptions;
+use crate::walk::compare;
 
 #[derive(Default)]
 pub(crate) struct OptsOverrides {
@@ -17,9 +18,18 @@ pub(crate) struct OptsOverrides {
     pub(crate) request_field_narrowing: bool,
     pub(crate) async_propagation: bool,
     pub(crate) defensive_null_guard: bool,
+    pub(crate) non_null_alias_local: bool,
+    pub(crate) defensive_log_guard: bool,
+    pub(crate) defensive_log_guard_methods: Option<Vec<String>>,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
+    let methods = over.defensive_log_guard_methods.unwrap_or_else(|| {
+        ["debug", "info", "warn", "error", "trace", "log"]
+            .into_iter()
+            .map(String::from)
+            .collect()
+    });
     CompareOptions {
         path: PathBuf::from("test.ts"),
         report_all: over.report_all,
@@ -34,6 +44,9 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_request_field_narrowing: over.request_field_narrowing,
         allow_async_propagation: over.async_propagation,
         allow_defensive_null_guard: over.defensive_null_guard,
+        allow_non_null_alias_local: over.non_null_alias_local,
+        allow_defensive_log_guard: over.defensive_log_guard,
+        defensive_log_guard_methods: methods,
     }
 }
 
@@ -90,6 +103,27 @@ opts_fn!(
 opts_fn!(request_narrowing_opts, request_field_narrowing);
 opts_fn!(async_propagation_opts, async_propagation);
 opts_fn!(defensive_guard_opts, defensive_null_guard);
+opts_fn!(
+    non_null_alias_opts,
+    non_null_alias_local,
+    cache_alias,
+);
+opts_fn!(
+    non_null_alias_plus_defensive_guard_opts,
+    non_null_alias_local,
+    defensive_null_guard,
+    cache_alias,
+);
+opts_fn!(defensive_log_guard_opts, defensive_log_guard);
+
+pub(crate) fn defensive_log_guard_custom_methods_opts(methods: Vec<String>) -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        defensive_log_guard: true,
+        defensive_log_guard_methods: Some(methods),
+        ..OptsOverrides::default()
+    })
+}
 
 pub(crate) fn opts() -> CompareOptions {
     build_opts(OptsOverrides::default())

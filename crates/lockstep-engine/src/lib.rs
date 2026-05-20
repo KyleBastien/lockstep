@@ -92,6 +92,9 @@ fn check_pair(
         allow_request_field_narrowing: config.allow_request_field_narrowing,
         allow_async_propagation: config.allow_async_propagation,
         allow_defensive_null_guard: config.allow_defensive_null_guard,
+        allow_non_null_alias_local: config.allow_non_null_alias_local,
+        allow_defensive_log_guard: config.allow_defensive_log_guard,
+        defensive_log_guard_methods: config.defensive_log_guard_methods.clone(),
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)

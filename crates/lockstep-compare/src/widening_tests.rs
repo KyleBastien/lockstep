@@ -5,7 +5,8 @@ use crate::test_helpers::{
     widening_plus_cache_alias_opts, widening_plus_swap_opts, widening_plus_tier1_opts,
     OptsOverrides,
 };
-use crate::walk::{compare, CompareOptions};
+use crate::compare_options::CompareOptions;
+use crate::walk::compare;
 
 #[test]
 fn nullish_widening_equivalences() {

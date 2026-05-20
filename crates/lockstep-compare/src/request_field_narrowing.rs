@@ -20,11 +20,10 @@
 //! Directional: only head adds the narrowing local. The reverse (base
 //! narrows, head uses bare member access) is left to flag.
 
-use lockstep_core::Finding;
 use tree_sitter::Node;
 
 use crate::node_utils::{compact_node_text, first_named_child, node_text, raw_comparable_children};
-use crate::walk::{walk_regular, NarrowedRequestField, WalkCtx};
+use crate::walk::{NarrowedRequestField, WalkCtx};
 
 /// Returns `true` when the head identifier resolves to a registered narrowing
 /// alias matching the base member expression.
@@ -51,35 +50,32 @@ pub(super) fn is_narrowed_request_field_pair(ctx: &WalkCtx, base: Node, head: No
     narrow.base_object == base_obj_text && narrow.base_property == base_prop_text
 }
 
-/// Detects narrowing declarations at the head block's top level. When at
-/// least one is found, registers a scoped alias for each and walks the
-/// block normally (with the narrow declarations dropped from head's child
-/// list). Returns `true` when the block was consumed.
-pub(super) fn try_request_field_narrowing(
-    ctx: &WalkCtx,
+/// Composable variant: detects request-field narrowing declarations in the
+/// given head block and registers each scoped alias onto `child_ctx`. Returns
+/// `true` when at least one alias was registered.
+pub(super) fn apply_request_field_narrowing(
+    child_ctx: &mut WalkCtx,
     base: Node,
     head: Node,
-    findings: &mut Vec<Finding>,
 ) -> bool {
-    if !ctx.allow_request_field_narrowing {
+    if !child_ctx.allow_request_field_narrowing {
         return false;
     }
     if base.kind() != "statement_block" || head.kind() != "statement_block" {
         return false;
     }
+    let head_src = child_ctx.head_src;
     let head_stmts: Vec<Node> = raw_comparable_children(head)
         .into_iter()
         .filter(|n| n.is_named())
         .collect();
-    let mut child_ctx = ctx.clone();
     let mut applied = false;
     for stmt in &head_stmts {
-        let Some(narrow) = extract_narrow(*stmt, ctx.head_src) else {
+        let Some(narrow) = extract_narrow(*stmt, head_src) else {
             continue;
         };
         if !head_stmts.iter().any(|s| {
-            s.start_byte() != stmt.start_byte()
-                && uses_identifier(*s, ctx.head_src, &narrow.head_name)
+            s.start_byte() != stmt.start_byte() && uses_identifier(*s, head_src, &narrow.head_name)
         }) {
             continue;
         }
@@ -93,11 +89,7 @@ pub(super) fn try_request_field_narrowing(
             });
         applied = true;
     }
-    if !applied {
-        return false;
-    }
-    walk_regular(&child_ctx, base, head, findings);
-    true
+    applied
 }
 
 struct Narrow {

@@ -147,6 +147,9 @@ allow_transient_cache_wrap = false   # accept `const LOCAL = X; CACHE = unwrap(L
 allow_request_field_narrowing = false # accept `const X = "p" in O && typeof O.p === "T" ? O.p : undefined;` extraction
 allow_async_propagation = false      # accept sync→async + await injection (observable change)
 allow_defensive_null_guard = false   # accept head-inserted `if (!cache) { log; return ERR; }` (observable change)
+allow_non_null_alias_local = false   # accept head-inserted `const LOCAL = CACHE;` after a null guard
+allow_defensive_log_guard = false    # accept head-inserted `if (cache) { LOGGER.METHOD(cache, ...) }` wrap
+defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
 report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
@@ -164,6 +167,8 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
   - `allow_request_field_narrowing` — head extracts a narrowed local via `"prop" in obj && typeof obj.prop === "T" ? obj.prop : undefined`.
   - `allow_async_propagation` — head adds `async` + `await` because a subclass override widened the return type. Observable behavior change; default off.
   - `allow_defensive_null_guard` — head inserts `if (!cache) { logErr; return LITERAL; }` where base would have thrown. Observable behavior change; default off.
+  - `allow_non_null_alias_local` — head extracts `const LOCAL = CACHE;` after a null guard so TS narrowing survives across `await` / method calls. Pure type-system artifact; default off.
+  - `allow_defensive_log_guard` — head wraps a logger call in `if (CACHE) { LOGGER.METHOD(CACHE, ...) }`. Method names matched against `defensive_log_guard_methods` (default: `debug`, `info`, `warn`, `error`, `trace`, `log`). Observable behavior change if the logger has side effects on null inputs; default off.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
 

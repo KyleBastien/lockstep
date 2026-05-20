@@ -6,10 +6,13 @@ mod array_first_equivalence;
 mod async_propagation;
 mod callable_equivalence;
 mod class_equivalence;
+mod compare_options;
+mod defensive_log_guard;
 mod defensive_null_guard;
 mod findings;
 mod iife_async_wrapper;
 mod node_utils;
+mod non_null_alias_local;
 mod nullish_widening_equivalence;
 mod optional_chain;
 mod request_field_narrowing;
@@ -20,14 +23,19 @@ pub mod tokens;
 pub mod walk;
 mod walk_ctx;
 
-pub use walk::{compare, CompareOptions};
+pub use compare_options::CompareOptions;
+pub use walk::compare;
 
 #[cfg(test)]
 mod async_propagation_tests;
 #[cfg(test)]
+mod defensive_log_guard_tests;
+#[cfg(test)]
 mod defensive_null_guard_tests;
 #[cfg(test)]
 mod iife_async_wrapper_tests;
+#[cfg(test)]
+mod non_null_alias_local_tests;
 #[cfg(test)]
 mod request_field_narrowing_tests;
 #[cfg(test)]

@@ -1,5 +1,6 @@
 use crate::test_helpers::{
-    assert_equiv_raw, assert_flagged_raw, defensive_guard_opts, opts_report_all,
+    assert_equiv_raw, assert_flagged_raw, defensive_guard_opts,
+    non_null_alias_plus_defensive_guard_opts, opts_report_all,
 };
 
 const BASE_NO_GUARD: &str = "function f(cache, params) {
@@ -65,6 +66,40 @@ fn defensive_null_guard_rejects_two_extra_statements() {
         }
         const extra = computeExtra();
         Object.assign(cache, params);
+    }";
+    assert_flagged_raw(base, head, &defensive_guard_opts());
+}
+
+#[test]
+fn defensive_null_guard_composes_with_non_null_alias_local() {
+    let base = "function f(params) {
+        Object.assign(cache, params);
+        return cache;
+    }";
+    let head = "function f(params) {
+        if (!cache) {
+            logError(\"missing\");
+            return false;
+        }
+        const current = cache;
+        Object.assign(current, params);
+        return current;
+    }";
+    assert_equiv_raw(base, head, &non_null_alias_plus_defensive_guard_opts());
+}
+
+#[test]
+fn defensive_null_guard_alone_rejects_extra_const_local() {
+    let base = "function f(params) {
+        Object.assign(cache, params);
+    }";
+    let head = "function f(params) {
+        if (!cache) {
+            logError(\"missing\");
+            return false;
+        }
+        const current = cache;
+        Object.assign(current, params);
     }";
     assert_flagged_raw(base, head, &defensive_guard_opts());
 }
