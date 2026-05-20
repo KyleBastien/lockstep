@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.10](https://github.com/KyleBastien/lockstep/compare/v0.1.9...v0.1.10) (2026-05-20)
+
+
+### Features
+
+* **compare:** non_null_alias_local + defensive_log_guard + guard composition ([#22](https://github.com/KyleBastien/lockstep/issues/22)) ([76a9fff](https://github.com/KyleBastien/lockstep/commit/76a9fff8662509e50029f64ef1ed3d1f0209e7ac))
+
 ## [0.1.9](https://github.com/KyleBastien/lockstep/compare/v0.1.8...v0.1.9) (2026-05-20)
 
 
