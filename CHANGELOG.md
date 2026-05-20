@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.11](https://github.com/KyleBastien/lockstep/compare/v0.1.10...v0.1.11) (2026-05-20)
+
+
+### Features
+
+* **compare:** allow_dead_defensive_optional_chain_removal ([#24](https://github.com/KyleBastien/lockstep/issues/24)) ([50413eb](https://github.com/KyleBastien/lockstep/commit/50413ebec746853c7e314ec196079bdefdb62e07))
+
 ## [0.1.10](https://github.com/KyleBastien/lockstep/compare/v0.1.9...v0.1.10) (2026-05-20)
 
 
