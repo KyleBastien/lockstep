@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.12](https://github.com/KyleBastien/lockstep/compare/v0.1.11...v0.1.12) (2026-05-20)
+
+
+### Features
+
+* **compare:** unknown_catch_narrowing + promise_settled_discrimination + pure_narrowing_helper ([#26](https://github.com/KyleBastien/lockstep/issues/26)) ([80d30ad](https://github.com/KyleBastien/lockstep/commit/80d30ad3d217f89b9b07c7e73a4f88cea9bd7edc))
+
 ## [0.1.11](https://github.com/KyleBastien/lockstep/compare/v0.1.10...v0.1.11) (2026-05-20)
 
 
