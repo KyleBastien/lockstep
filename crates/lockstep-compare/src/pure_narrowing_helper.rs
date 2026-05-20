@@ -99,30 +99,42 @@ pub(super) fn is_pure_narrowing_helper_pair(ctx: &WalkCtx, base: Node, head: Nod
 }
 
 fn extract_helper_call_inner<'a>(ctx: &WalkCtx, head: Node<'a>) -> Option<Node<'a>> {
+    let call = unwrap_nullish_default_call(head, ctx.head_src)?;
+    let _helper = recognized_helper_name(ctx, call)?;
+    sole_call_argument(call)
+}
+
+/// Returns the call-expression on the left of a `?? DEFAULT` binary
+/// expression. Both the operator check and the left-side `call_expression`
+/// kind check live here so the caller stays narrow.
+fn unwrap_nullish_default_call<'a>(head: Node<'a>, src: &str) -> Option<Node<'a>> {
     if head.kind() != "binary_expression" {
         return None;
     }
-    let op = head.child_by_field_name("operator")?;
-    if node_text(op, ctx.head_src) != "??" {
+    if node_text(head.child_by_field_name("operator")?, src) != "??" {
         return None;
     }
     let left = unwrap_parens(head.child_by_field_name("left")?);
     if left.kind() != "call_expression" {
         return None;
     }
-    let callee = left.child_by_field_name("function")?;
+    Some(left)
+}
+
+fn recognized_helper_name(ctx: &WalkCtx, call: Node) -> Option<String> {
+    let callee = call.child_by_field_name("function")?;
     if callee.kind() != "identifier" {
         return None;
     }
-    let helper_name = node_text(callee, ctx.head_src);
-    if !ctx
-        .recognized_narrowing_helpers
+    let name = node_text(callee, ctx.head_src);
+    ctx.recognized_narrowing_helpers
         .iter()
-        .any(|h| h == &helper_name)
-    {
-        return None;
-    }
-    let arguments = left.child_by_field_name("arguments")?;
+        .find(|h| *h == &name)
+        .map(|_| name)
+}
+
+fn sole_call_argument(call: Node) -> Option<Node> {
+    let arguments = call.child_by_field_name("arguments")?;
     let args: Vec<Node> = raw_comparable_children(arguments)
         .into_iter()
         .filter(|n| n.is_named())

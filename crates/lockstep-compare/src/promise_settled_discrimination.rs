@@ -100,24 +100,29 @@ fn match_settled_guard(stmt: Node, src: &str) -> Option<Guard> {
     if stmt.kind() != "if_statement" {
         return None;
     }
-    let condition = unwrap_parens(stmt.child_by_field_name("condition")?);
+    let (op, name, tag) = match_status_condition(stmt.child_by_field_name("condition")?, src)?;
+    if !body_terminates(stmt.child_by_field_name("consequence")?) {
+        return None;
+    }
+    let survives = surviving_status(op.as_str(), tag)?;
+    Some(Guard { name, survives })
+}
+
+/// Parses `NAME.status === "TAG"` / `"TAG" !== NAME.status` shapes from the
+/// `if` condition. Returns the operator, bound name, and tag text.
+fn match_status_condition(condition: Node, src: &str) -> Option<(String, String, String)> {
+    let condition = unwrap_parens(condition);
     if condition.kind() != "binary_expression" {
         return None;
     }
-    let op_node = condition.child_by_field_name("operator")?;
-    let op = node_text(op_node, src);
+    let op = node_text(condition.child_by_field_name("operator")?, src);
     if !matches!(op.as_str(), "===" | "!==") {
         return None;
     }
     let left = unwrap_parens(condition.child_by_field_name("left")?);
     let right = unwrap_parens(condition.child_by_field_name("right")?);
     let (name, tag) = extract_status_check(left, right, src)?;
-    let consequence = stmt.child_by_field_name("consequence")?;
-    if !body_terminates(consequence) {
-        return None;
-    }
-    let survives = surviving_status(op.as_str(), tag)?;
-    Some(Guard { name, survives })
+    Some((op, name, tag))
 }
 
 /// Accepts either `NAME.status === "TAG"` or `"TAG" === NAME.status` shape.
@@ -192,31 +197,37 @@ fn body_terminates(body: Node) -> bool {
 fn collect_settled_names(stmts: &[Node], src: &str) -> Vec<String> {
     let mut out = Vec::new();
     for stmt in stmts {
-        let Some(decl) = sole_variable_declarator(*stmt) else {
-            continue;
-        };
-        let Some(value) = decl.child_by_field_name("value") else {
-            continue;
-        };
-        if !value_is_promise_allsettled(unwrap_parens(value), src) {
-            continue;
-        }
-        let Some(name) = decl.child_by_field_name("name") else {
-            continue;
-        };
-        match name.kind() {
-            "identifier" => out.push(node_text(name, src)),
-            "array_pattern" => {
-                for child in raw_comparable_children(name) {
-                    if child.kind() == "identifier" {
-                        out.push(node_text(child, src));
-                    }
-                }
-            }
-            _ => {}
-        }
+        extend_with_settled_names(&mut out, *stmt, src);
     }
     out
+}
+
+fn extend_with_settled_names(out: &mut Vec<String>, stmt: Node, src: &str) {
+    let Some(decl) = sole_variable_declarator(stmt) else {
+        return;
+    };
+    let Some(value) = decl.child_by_field_name("value") else {
+        return;
+    };
+    if !value_is_promise_allsettled(unwrap_parens(value), src) {
+        return;
+    }
+    let Some(name) = decl.child_by_field_name("name") else {
+        return;
+    };
+    match name.kind() {
+        "identifier" => out.push(node_text(name, src)),
+        "array_pattern" => extend_with_pattern_idents(out, name, src),
+        _ => {}
+    }
+}
+
+fn extend_with_pattern_idents(out: &mut Vec<String>, pattern: Node, src: &str) {
+    for child in raw_comparable_children(pattern) {
+        if child.kind() == "identifier" {
+            out.push(node_text(child, src));
+        }
+    }
 }
 
 fn sole_variable_declarator(stmt: Node) -> Option<Node> {
@@ -262,12 +273,7 @@ fn await_argument(node: Node) -> Option<Node> {
 /// Returns `true` when at least one statement after the guard reads
 /// `NAME.value.<X>` (when fulfilled survives) or `NAME.reason.<X>` (when
 /// rejected survives). The access can be at any depth in a later statement.
-fn witness_after(
-    later_stmts: &[Node],
-    src: &str,
-    name: &str,
-    survives: SurvivingStatus,
-) -> bool {
+fn witness_after(later_stmts: &[Node], src: &str, name: &str, survives: SurvivingStatus) -> bool {
     let expected_prop = match survives {
         SurvivingStatus::Fulfilled => "value",
         SurvivingStatus::Rejected => "reason",

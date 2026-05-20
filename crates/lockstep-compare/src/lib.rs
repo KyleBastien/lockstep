@@ -10,6 +10,7 @@ mod compare_options;
 mod dead_defensive_optional_chain;
 mod defensive_log_guard;
 mod defensive_null_guard;
+mod entry;
 mod findings;
 mod iife_async_wrapper;
 mod node_utils;
@@ -28,7 +29,7 @@ pub mod walk;
 mod walk_ctx;
 
 pub use compare_options::CompareOptions;
-pub use walk::compare;
+pub use entry::compare;
 
 #[cfg(test)]
 mod async_propagation_tests;

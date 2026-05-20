@@ -240,7 +240,9 @@ fn alternative_is_accepted(node: Node, src: &str, err_name: &str, property: &str
             alternative_is_string_call(node, src, err_name)
                 || alternative_is_optional_to_string(node, src, err_name)
         }
-        "binary_expression" => alternative_is_optional_prop_or_literal(node, src, err_name, property),
+        "binary_expression" => {
+            alternative_is_optional_prop_or_literal(node, src, err_name, property)
+        }
         _ => false,
     }
 }
@@ -353,9 +355,7 @@ fn head_is_inside_catch_binding(node: Node, src: &str, err_name: &str) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
         // Wrong-name catch: keep climbing in case of nesting.
-        if parent.kind() == "catch_clause"
-            && catch_parameter_matches(parent, src, err_name)
-        {
+        if parent.kind() == "catch_clause" && catch_parameter_matches(parent, src, err_name) {
             return true;
         }
         if is_function_boundary(parent.kind()) {

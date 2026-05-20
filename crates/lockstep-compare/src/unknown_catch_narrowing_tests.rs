@@ -85,7 +85,8 @@ fn nested_catch_uses_inner_binding() {
 #[test]
 fn rejects_arrow_callback_outside_catch() {
     let base = "function f() { return (err) => log(err.message); }";
-    let head = "function f() { return (err) => log(err instanceof Error ? err.message : String(err)); }";
+    let head =
+        "function f() { return (err) => log(err instanceof Error ? err.message : String(err)); }";
     assert_flagged_raw(base, head, &unknown_catch_narrowing_opts());
 }
 

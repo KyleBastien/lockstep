@@ -1,6 +1,6 @@
 use crate::test_helpers::{
-    assert_equiv_raw, assert_flagged_raw, opts_report_all,
-    promise_settled_discrimination_opts, promise_settled_plus_non_null_alias_opts,
+    assert_equiv_raw, assert_flagged_raw, opts_report_all, promise_settled_discrimination_opts,
+    promise_settled_plus_non_null_alias_opts,
 };
 
 #[test]
