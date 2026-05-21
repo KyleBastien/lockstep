@@ -60,3 +60,32 @@ fn parse_error(path: &Path, base_side: bool) -> Finding {
         format!("failed to parse {which} as JavaScript"),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::opts_report_all;
+
+    #[test]
+    fn compare_returns_empty_for_identical_sources() {
+        let src = "function f(x) { return x + 1; }";
+        let findings = compare(src, src, &opts_report_all());
+        assert!(findings.is_empty(), "got: {:?}", findings);
+    }
+
+    #[test]
+    fn compare_flags_divergent_sources() {
+        let base = "function f(x) { return x + 1; }";
+        let head = "function f(x) { return x - 1; }";
+        let findings = compare(base, head, &opts_report_all());
+        assert!(!findings.is_empty(), "expected divergence");
+    }
+
+    #[test]
+    fn compare_walks_through_to_walker() {
+        let base = "const x = 1;";
+        let head = "const x = 2;";
+        let findings = compare(base, head, &opts_report_all());
+        assert!(!findings.is_empty(), "expected token divergence");
+    }
+}
