@@ -91,7 +91,7 @@ pub(super) fn is_catch_narrowed_pair(ctx: &WalkCtx, base: Node, head: Node) -> b
     let Some(property) = base.child_by_field_name("property") else {
         return false;
     };
-    node_text(object, ctx.base_src) == alias.err_name
+    compact_node_text(object, ctx.base_src) == alias.err_name
         && node_text(property, ctx.base_src) == alias.property
 }
 
