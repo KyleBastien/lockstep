@@ -89,4 +89,14 @@ pub struct CompareOptions {
     /// Function names recognized as pure narrowing helpers by
     /// `allow_pure_narrowing_helper`. Defaults to empty — opt-in per workspace.
     pub narrowing_helpers: Vec<String>,
+    /// Accept head `const LOCAL = HELPER(EXPR) ?? DEFAULT;` (or the
+    /// type-predicate ternary form) followed by downstream reads of `LOCAL`,
+    /// treating each `LOCAL` read as equivalent to base `EXPR`. Composes with
+    /// `allow_pure_narrowing_helper`. See `helper_call_site_substitution`.
+    pub allow_helper_call_site_substitution: bool,
+    /// Accept the head shape `const { K: RAW_i, ... } = SRC;` followed by
+    /// `const K_i = HELPER(RAW_i) ?? DEFAULT;` declarations, treating it as
+    /// equivalent to base `const { K_i, ... } = SRC;`. Composes with
+    /// `allow_pure_narrowing_helper`. See `destructure_then_narrow`.
+    pub allow_destructure_then_narrow: bool,
 }

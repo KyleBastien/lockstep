@@ -2,48 +2,98 @@ use crate::test_helpers::{
     assert_equiv_raw, assert_flagged_raw, opts_report_all, unknown_catch_narrowing_opts,
 };
 
-#[test]
-fn inline_ternary_with_string_call_absorbs() {
-    let base = "function f() {
+const BASE_INLINE: &str = "function f() {
         try { work(); } catch (err) { log(err.message); }
     }";
-    let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : String(err)); }
-    }";
-    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+
+fn head_inline(fallback: &str) -> String {
+    format!(
+        "function f() {{
+        try {{ work(); }} catch (err) {{ log(err instanceof Error ? err.message : {fallback}); }}
+    }}"
+    )
+}
+
+fn assert_inline_equiv(fallback: &str) {
+    assert_equiv_raw(BASE_INLINE, &head_inline(fallback), &unknown_catch_narrowing_opts());
+}
+
+fn assert_inline_flagged(fallback: &str) {
+    assert_flagged_raw(BASE_INLINE, &head_inline(fallback), &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn inline_ternary_with_string_call_absorbs() {
+    assert_inline_equiv("String(err)");
 }
 
 #[test]
 fn inline_ternary_with_optional_to_string_absorbs() {
-    let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
-    }";
-    let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : err?.toString()); }
-    }";
-    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+    assert_inline_equiv("err?.toString()");
 }
 
 #[test]
 fn inline_ternary_with_optional_prop_or_literal_absorbs() {
-    let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
-    }";
-    let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : err?.message ?? \"unknown\"); }
-    }";
-    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+    assert_inline_equiv("err?.message ?? \"unknown\"");
 }
 
 #[test]
 fn inline_ternary_with_string_literal_fallback_absorbs() {
-    let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
-    }";
+    assert_inline_equiv("\"unknown\"");
+}
+
+#[test]
+fn inline_ternary_with_typeof_string_ternary_fallback_absorbs() {
+    assert_inline_equiv("(typeof err === \"string\" ? err : \"unknown\")");
+}
+
+#[test]
+fn inline_ternary_with_string_call_nullish_fallback_absorbs() {
+    assert_inline_equiv("String(err ?? \"unknown\")");
+}
+
+#[test]
+fn inline_ternary_with_chained_optional_prop_or_literal_absorbs() {
+    assert_inline_equiv("err?.message ?? err?.detail ?? \"unknown\"");
+}
+
+#[test]
+fn rejects_typeof_ternary_with_wrong_type() {
+    assert_inline_flagged("(typeof err === \"number\" ? err : \"unknown\")");
+}
+
+#[test]
+fn rejects_string_call_with_non_err_nullish() {
+    assert_inline_flagged("String(other ?? \"unknown\")");
+}
+
+#[test]
+fn rejects_chained_nullish_with_non_string_tail() {
+    assert_inline_flagged("err?.message ?? err?.detail ?? other()");
+}
+
+#[test]
+fn rejects_instanceof_with_subclass() {
     let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : \"unknown\"); }
+        try { work(); } catch (err) { log(err instanceof TypeError ? err.message : String(err)); }
     }";
-    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+    assert_flagged_raw(BASE_INLINE, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn rejects_unrelated_fallback_call() {
+    let head = "function f() {
+        try { work(); } catch (err) { log(err instanceof Error ? err.message : other(err)); }
+    }";
+    assert_flagged_raw(BASE_INLINE, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn is_gated_off_by_default() {
+    let head = "function f() {
+        try { work(); } catch (err) { log(err instanceof Error ? err.message : String(err)); }
+    }";
+    assert_flagged_raw(BASE_INLINE, head, &opts_report_all());
 }
 
 #[test]
@@ -105,34 +155,66 @@ fn rejects_arrow_callback_outside_catch() {
 }
 
 #[test]
-fn rejects_instanceof_with_subclass() {
+fn const_between_other_catch_stmts_absorbs() {
     let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
+        try { work(); } catch (err) {
+            audit(err);
+            log(err.message);
+            cleanup();
+        }
     }";
     let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof TypeError ? err.message : String(err)); }
+        try { work(); } catch (err) {
+            audit(err);
+            const message = err instanceof Error ? err.message : String(err);
+            log(message);
+            cleanup();
+        }
     }";
-    assert_flagged_raw(base, head, &unknown_catch_narrowing_opts());
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
 }
 
 #[test]
-fn rejects_unrelated_fallback_call() {
+fn const_used_across_three_templates_and_bare_arg_absorbs() {
     let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
+        try { work(); } catch (err) {
+            logger.error(`first: ${err.message}`);
+            logger.warn(`second: ${err.message}`);
+            logger.info(`third: ${err.message}`);
+            forward(err.message);
+        }
     }";
     let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : other(err)); }
+        try { work(); } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error(`first: ${message}`);
+            logger.warn(`second: ${message}`);
+            logger.info(`third: ${message}`);
+            forward(message);
+        }
     }";
-    assert_flagged_raw(base, head, &unknown_catch_narrowing_opts());
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
 }
 
 #[test]
-fn is_gated_off_by_default() {
+fn two_catches_same_try_with_different_bindings_absorbs() {
     let base = "function f() {
-        try { work(); } catch (err) { log(err.message); }
+        try {
+            try { work(); } catch (inner) { log(inner.message); }
+        } catch (outer) {
+            log(outer.message);
+        }
     }";
     let head = "function f() {
-        try { work(); } catch (err) { log(err instanceof Error ? err.message : String(err)); }
+        try {
+            try { work(); } catch (inner) {
+                const innerMessage = inner instanceof Error ? inner.message : String(inner);
+                log(innerMessage);
+            }
+        } catch (outer) {
+            const outerMessage = outer instanceof Error ? outer.message : String(outer);
+            log(outerMessage);
+        }
     }";
-    assert_flagged_raw(base, head, &opts_report_all());
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
 }

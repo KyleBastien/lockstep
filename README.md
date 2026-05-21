@@ -151,6 +151,15 @@ allow_non_null_alias_local = false   # accept head-inserted `const LOCAL = CACHE
 allow_defensive_log_guard = false    # accept head-inserted `if (cache) { LOGGER.METHOD(cache, ...) }` wrap
 defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
 allow_dead_defensive_optional_chain_removal = false # accept head-removed `OBJ?.PROP` when block writes to OBJ prove the `?.` is dead
+allow_unknown_catch_narrowing = false # accept `ERR instanceof Error ? ERR.PROP : <fallback>` ternary in catch blocks
+allow_promise_settled_discrimination = false # accept head-inserted `status !== "fulfilled"` early-return guards
+allow_pure_narrowing_helper = false # accept `HELPER(EXPR) ?? DEFAULT` ↔ base `EXPR` when HELPER ∈ narrowing_helpers
+narrowing_helpers = []               # function names recognized by allow_pure_narrowing_helper
+# v0.1.14: extracted-local + destructure-rename composition rules. Each cascades
+# on automatically when `allow_pure_narrowing_helper = true`; set to `true`
+# explicitly to enable in isolation.
+allow_helper_call_site_substitution = false
+allow_destructure_then_narrow = false
 report_all_findings = true
 ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
 ```
@@ -171,8 +180,30 @@ ignore = ["**/*.test.ts", "**/__snapshots__/**", ...]
   - `allow_non_null_alias_local` — head extracts `const LOCAL = CACHE;` after a null guard so TS narrowing survives across `await` / method calls. Pure type-system artifact; default off.
   - `allow_defensive_log_guard` — head wraps a logger call in `if (CACHE) { LOGGER.METHOD(CACHE, ...) }`. Method names matched against `defensive_log_guard_methods` (default: `debug`, `info`, `warn`, `error`, `trace`, `log`). Observable behavior change if the logger has side effects on null inputs; default off.
   - `allow_dead_defensive_optional_chain_removal` — head drops a base `?.` (`OBJ?.PROP` → `OBJ.PROP`) when the enclosing `if`'s body unconditionally writes to `OBJ` (e.g. `OBJ.X = …`, `Object.assign(OBJ, …)`). The write would itself throw if `OBJ` were null/undefined, so the `?.` is dead defensive code. Error location differs at runtime; default off.
+  - `allow_helper_call_site_substitution` — head extracts `const LOCAL = HELPER(EXPR) ?? DEFAULT;` (or the type-predicate ternary form) and reads `LOCAL` downstream. Each `LOCAL` read compares equal to base `EXPR`. Requires `HELPER` in `narrowing_helpers`. Cascades on with `allow_pure_narrowing_helper`. Observable when `EXPR` evaluates to a non-matching runtime type (same caveat as `allow_pure_narrowing_helper`).
+  - `allow_destructure_then_narrow` — head destructures `{ K1: RAW_1, K2: RAW_2, … } = SRC` then declares `const K_i = HELPER(RAW_i) ?? DEFAULT;` for each binding, equivalent to base `{ K1, K2, … } = SRC`. Cascades on with `allow_pure_narrowing_helper`. Composes with `allow_helper_call_site_substitution` for downstream uses.
 - Identifier renames are not allowed.
 - Cross-file moves (`git mv` + split into multiple `.ts` files) are not handled.
+
+## Patterns lockstep intentionally flags
+
+A few migration shapes look mechanical but encode real runtime/behavior
+changes. Lockstep keeps flagging these — manual review is the right answer:
+
+- **Return-shape rewrite.** Head replaces `return RESULT;` with
+  `if (RESULT.status !== "fulfilled") return X; const v = RESULT.value.PATH; return isPlainObject(v) ? v : {};`
+  Base returned the raw `PromiseSettledResult`; head returns the inner
+  payload. Callers see different shapes at runtime; the contract changed.
+  No flag exists to absorb this — audit callers and split the behavioral
+  change out of the migration.
+- **Call-arg shape change.** Head replaces `f(obj)` with
+  `f({ a: obj.a, b: obj.b })`. The callee may behave differently when
+  given a projected object vs. the original; this is a refactor, not a
+  strict-TS-required reshape.
+- **Defensive deep spread.** Head replaces `f(x)` with
+  `f({ ...x, props: { ...x.props } })`. Adds a copy that changes memory
+  layout and the downstream-mutation contract — observably different from
+  the base passthrough.
 
 ## License
 

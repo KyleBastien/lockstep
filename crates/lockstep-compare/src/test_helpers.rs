@@ -26,6 +26,8 @@ pub(crate) struct OptsOverrides {
     pub(crate) promise_settled_discrimination: bool,
     pub(crate) pure_narrowing_helper: bool,
     pub(crate) narrowing_helpers: Option<Vec<String>>,
+    pub(crate) helper_call_site_substitution: bool,
+    pub(crate) destructure_then_narrow: bool,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -57,6 +59,8 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_promise_settled_discrimination: over.promise_settled_discrimination,
         allow_pure_narrowing_helper: over.pure_narrowing_helper,
         narrowing_helpers: over.narrowing_helpers.unwrap_or_default(),
+        allow_helper_call_site_substitution: over.helper_call_site_substitution,
+        allow_destructure_then_narrow: over.destructure_then_narrow,
     }
 }
 
@@ -152,6 +156,20 @@ pub(crate) fn defensive_log_guard_custom_methods_opts(methods: Vec<String>) -> C
 }
 
 pub(crate) fn pure_narrowing_helper_opts(helpers: Vec<String>) -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(helpers),
+        helper_call_site_substitution: true,
+        destructure_then_narrow: true,
+        ..OptsOverrides::default()
+    })
+}
+
+/// Like [`pure_narrowing_helper_opts`] but with the v0.1.14 rule extensions
+/// (`helper_call_site_substitution`, `destructure_then_narrow`) explicitly
+/// disabled. Used by tests that prove the new rules are independently gated.
+pub(crate) fn pure_narrowing_helper_strict_opts(helpers: Vec<String>) -> CompareOptions {
     build_opts(OptsOverrides {
         report_all: true,
         pure_narrowing_helper: true,

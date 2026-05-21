@@ -49,6 +49,8 @@ pub struct Config {
     pub allow_promise_settled_discrimination: bool,
     pub allow_pure_narrowing_helper: bool,
     pub narrowing_helpers: Vec<String>,
+    pub allow_helper_call_site_substitution: bool,
+    pub allow_destructure_then_narrow: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -86,6 +88,8 @@ impl Default for Config {
             allow_promise_settled_discrimination: false,
             allow_pure_narrowing_helper: false,
             narrowing_helpers: Vec::new(),
+            allow_helper_call_site_substitution: false,
+            allow_destructure_then_narrow: false,
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -171,6 +175,8 @@ mod tests {
         assert!(!c.allow_unknown_catch_narrowing);
         assert!(!c.allow_promise_settled_discrimination);
         assert!(!c.allow_pure_narrowing_helper);
+        assert!(!c.allow_helper_call_site_substitution);
+        assert!(!c.allow_destructure_then_narrow);
         assert!(c.narrowing_helpers.is_empty());
         assert_eq!(
             c.defensive_log_guard_methods,

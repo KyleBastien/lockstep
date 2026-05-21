@@ -101,6 +101,10 @@ fn check_pair(
         allow_promise_settled_discrimination: config.allow_promise_settled_discrimination,
         allow_pure_narrowing_helper: config.allow_pure_narrowing_helper,
         narrowing_helpers: config.narrowing_helpers.clone(),
+        allow_helper_call_site_substitution: config.allow_helper_call_site_substitution
+            || config.allow_pure_narrowing_helper,
+        allow_destructure_then_narrow: config.allow_destructure_then_narrow
+            || config.allow_pure_narrowing_helper,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
@@ -234,5 +238,34 @@ mod tests {
         );
         let report = run(&Config::default(), &default_opts(&root)).unwrap();
         assert!(!report.findings.is_empty());
+    }
+
+    #[test]
+    fn pure_narrowing_helper_cascades_to_v0_1_14_subflags() {
+        let tmp = TempDir::new().unwrap();
+        let head = "function asString(value) { \
+                return typeof value === \"string\" ? value : undefined; \
+            }\n\
+            function f(obj) {\n\
+                const name = asString(obj.foo) ?? \"\";\n\
+                return `name: ${name}`;\n\
+            }\n";
+        let root = setup_migration_repo(
+            &tmp,
+            "src/h.js",
+            "function f(obj) { return `name: ${obj.foo}`; }\n",
+            "src/h.ts",
+            head,
+        );
+        let mut config = Config::default();
+        config.allow_pure_narrowing_helper = true;
+        config.narrowing_helpers = vec!["asString".to_string()];
+        let report = run(&config, &default_opts(&root)).unwrap();
+        assert_eq!(
+            report.findings.len(),
+            0,
+            "v0.1.14 sub-flags should cascade on; got: {:?}",
+            report.findings
+        );
     }
 }

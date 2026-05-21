@@ -17,14 +17,10 @@
 //! ```
 //!
 //! Each is accepted as equivalent to the base shape that reads `err.message`
-//! directly. The alternative branch of the ternary may take any of these
-//! shapes — all are runtime-equivalent stringifications of the caught value
-//! for the JS-typical Error throw case:
-//!
-//! - `String(ERR)`
-//! - `ERR?.toString()`
-//! - `ERR?.PROP ?? <string literal>` (PROP matches the consequence's PROP)
-//! - A bare string literal
+//! directly. The alternative branch of the ternary may take any of the
+//! shapes documented in [`crate::unknown_catch_fallbacks`] — all are
+//! runtime-equivalent stringifications of the caught value for the
+//! JS-typical Error throw case.
 //!
 //! Precondition: `ERR` must be bound by an enclosing `catch_clause` parameter.
 //! This is the TS-forced gate — without it the rule risks accepting
@@ -40,6 +36,7 @@
 use tree_sitter::Node;
 
 use crate::node_utils::{compact_node_text, first_named_child, node_text, raw_comparable_children};
+use crate::unknown_catch_fallbacks::alternative_is_accepted;
 use crate::walk::{CatchNarrowedLocal, WalkCtx};
 
 /// Leaf-pair-style pre-empt for the **inline ternary** form.
@@ -231,130 +228,12 @@ fn consequence_member(node: Node, src: &str) -> Option<(String, String)> {
     Some((node_text(object, src), node_text(property, src)))
 }
 
-/// Accepts any of the four documented fallback variants. `err_name` and
-/// `property` come from the ternary's consequence and condition.
-fn alternative_is_accepted(node: Node, src: &str, err_name: &str, property: &str) -> bool {
-    match node.kind() {
-        "string" => true,
-        "call_expression" => {
-            alternative_is_string_call(node, src, err_name)
-                || alternative_is_optional_to_string(node, src, err_name)
-        }
-        "binary_expression" => {
-            alternative_is_optional_prop_or_literal(node, src, err_name, property)
-        }
-        _ => false,
-    }
-}
-
-/// `String(ERR)` — `call_expression` with callee `String`, single arg `ERR`.
-fn alternative_is_string_call(call: Node, src: &str, err_name: &str) -> bool {
-    let Some(callee) = call.child_by_field_name("function") else {
-        return false;
-    };
-    if callee.kind() != "identifier" || node_text(callee, src) != "String" {
-        return false;
-    }
-    let Some(arguments) = call.child_by_field_name("arguments") else {
-        return false;
-    };
-    let args: Vec<Node> = raw_comparable_children(arguments)
-        .into_iter()
-        .filter(|n| n.is_named())
-        .collect();
-    if args.len() != 1 {
-        return false;
-    }
-    let arg = unwrap_parens(args[0]);
-    arg.kind() == "identifier" && node_text(arg, src) == err_name
-}
-
-/// `ERR?.toString()` — `call_expression` whose callee is an optional-chained
-/// member expression with object `ERR` and property `toString`, called with
-/// no arguments.
-fn alternative_is_optional_to_string(call: Node, src: &str, err_name: &str) -> bool {
-    let Some(callee) = call.child_by_field_name("function") else {
-        return false;
-    };
-    if callee.kind() != "member_expression" {
-        return false;
-    }
-    if callee.child_by_field_name("optional_chain").is_none() {
-        return false;
-    }
-    let Some(object) = callee.child_by_field_name("object") else {
-        return false;
-    };
-    if object.kind() != "identifier" || node_text(object, src) != err_name {
-        return false;
-    }
-    let Some(property) = callee.child_by_field_name("property") else {
-        return false;
-    };
-    if node_text(property, src) != "toString" {
-        return false;
-    }
-    let Some(arguments) = call.child_by_field_name("arguments") else {
-        return false;
-    };
-    let args: Vec<Node> = raw_comparable_children(arguments)
-        .into_iter()
-        .filter(|n| n.is_named())
-        .collect();
-    args.is_empty()
-}
-
-/// `ERR?.PROP ?? <string-literal>` — `binary_expression` with `??` operator,
-/// left an optional-chain member access on `ERR` to `PROP`, right a string
-/// literal.
-fn alternative_is_optional_prop_or_literal(
-    node: Node,
-    src: &str,
-    err_name: &str,
-    property: &str,
-) -> bool {
-    let Some(op) = node.child_by_field_name("operator") else {
-        return false;
-    };
-    if node_text(op, src) != "??" {
-        return false;
-    }
-    let Some(left) = node.child_by_field_name("left") else {
-        return false;
-    };
-    let Some(right) = node.child_by_field_name("right") else {
-        return false;
-    };
-    let left = unwrap_parens(left);
-    let right = unwrap_parens(right);
-    if right.kind() != "string" {
-        return false;
-    }
-    if left.kind() != "member_expression" {
-        return false;
-    }
-    if left.child_by_field_name("optional_chain").is_none() {
-        return false;
-    }
-    let Some(object) = left.child_by_field_name("object") else {
-        return false;
-    };
-    if object.kind() != "identifier" || node_text(object, src) != err_name {
-        return false;
-    }
-    let Some(prop_node) = left.child_by_field_name("property") else {
-        return false;
-    };
-    node_text(prop_node, src) == property
-}
-
 /// Climbs from `node` to a `catch_clause` whose parameter identifier matches
 /// `err_name`. Returns `true` on hit, `false` otherwise (including when an
 /// enclosing function boundary is crossed first — out of scope).
 fn head_is_inside_catch_binding(node: Node, src: &str, err_name: &str) -> bool {
     let mut current = node;
     while let Some(parent) = current.parent() {
-        // Wrong-name catch: keep climbing in case of nesting.
         if parent.kind() == "catch_clause" && catch_parameter_matches(parent, src, err_name) {
             return true;
         }

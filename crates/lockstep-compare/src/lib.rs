@@ -10,9 +10,11 @@ mod compare_options;
 mod dead_defensive_optional_chain;
 mod defensive_log_guard;
 mod defensive_null_guard;
+mod destructure_then_narrow;
 mod entry;
 mod findings;
 mod handler_arrow_expansion;
+mod helper_call_site_substitution;
 mod iife_async_wrapper;
 mod node_utils;
 mod non_null_alias_local;
@@ -22,6 +24,7 @@ mod promise_settled_discrimination;
 mod pure_narrowing_helper;
 mod request_field_narrowing;
 mod transient_cache_wrap;
+mod unknown_catch_fallbacks;
 mod unknown_catch_narrowing;
 
 pub mod report;
@@ -41,7 +44,11 @@ mod defensive_log_guard_tests;
 #[cfg(test)]
 mod defensive_null_guard_tests;
 #[cfg(test)]
+mod destructure_then_narrow_tests;
+#[cfg(test)]
 mod handler_arrow_expansion_tests;
+#[cfg(test)]
+mod helper_call_site_substitution_tests;
 #[cfg(test)]
 mod iife_async_wrapper_tests;
 #[cfg(test)]
