@@ -8,20 +8,23 @@
 //!
 //! ```text
 //! const { K1: RAW1, K2: RAW2, ... } = SRC;
-//! const K1 = HELPER(RAW1) ?? DEFAULT;
-//! const K2 = HELPER(RAW2) ?? DEFAULT;
+//! const L1 = HELPER(RAW1) ?? DEFAULT;
+//! const L2 = HELPER(RAW2) ?? DEFAULT;
 //! ```
 //!
-//! Base shape:
+//! Base shape (either shorthand or rename per field, mixable):
 //!
 //! ```text
-//! const { K1, K2, ... } = SRC;
+//! const { K1, K2: L2, ... } = SRC;
 //! ```
 //!
-//! When source expressions agree and the same key set appears on both
-//! sides, all `K_i` reads downstream on both sides reference identifiers
-//! of the same name — so the equivalence reduces to "strip both
-//! destructures + all narrow stmts on head, walk the rest in lockstep."
+//! Each field's narrow local `Li` must equal the base's local for that key
+//! (the key itself in the shorthand `{ K }` case, the rename target `L` in
+//! the `{ K: L }` case). When source expressions agree on both sides and
+//! every field pairs up consistently, all `Li` reads downstream on both
+//! sides reference identifiers of the same name — so the equivalence
+//! reduces to "strip both destructures + all narrow stmts on head, walk
+//! the rest in lockstep."
 //!
 //! Out of scope (v1):
 //! - Mixed shorthand on head (`{ K1, K2: RAW2 }`).
@@ -112,7 +115,15 @@ fn ignore_group_bytes(
 struct HeadGroup<'a> {
     consumed: usize,
     source_node: Node<'a>,
-    keys: Vec<String>,
+    /// Per-field pairs of `(destructure key, narrow local)`. The narrow
+    /// local is the LHS of the `const ?L = HELPER(K_RAW) ?? DEFAULT;`
+    /// statement matched to this field.
+    fields: Vec<HeadField>,
+}
+
+struct HeadField {
+    key: String,
+    narrow_local: String,
 }
 
 /// Recognizes the head destructure + N narrow stmts starting at `i`.
@@ -126,24 +137,29 @@ fn head_group_at<'a>(ctx: &WalkCtx, stmts: &[Node<'a>], i: usize) -> Option<Head
     if i + n >= stmts.len() {
         return None;
     }
-    let mut keys: Vec<String> = Vec::with_capacity(n);
+    let mut fields: Vec<HeadField> = Vec::with_capacity(n);
     for binding in &destruct.bindings {
-        let narrow_stmt = stmts[i + 1 + keys.len()];
+        let narrow_stmt = stmts[i + 1 + fields.len()];
         let extract = extract_helper_call_site(narrow_stmt, ctx)?;
-        if !narrow_matches_binding(&extract, binding) {
+        if !narrow_uses_binding_raw(&extract, binding) {
             return None;
         }
-        keys.push(binding.key.clone());
+        fields.push(HeadField {
+            key: binding.key.clone(),
+            narrow_local: extract.local_name,
+        });
     }
     Some(HeadGroup {
         consumed: 1 + n,
         source_node: destruct.source,
-        keys,
+        fields,
     })
 }
 
-fn narrow_matches_binding(extract: &Extract, binding: &HeadBinding) -> bool {
-    extract.local_name == binding.key && extract.base_expr_text == binding.head_local
+/// The narrow statement must read the corresponding `RAW_i` from the head
+/// destructure; the narrow's local name is free to be anything.
+fn narrow_uses_binding_raw(extract: &Extract, binding: &HeadBinding) -> bool {
+    extract.base_expr_text == binding.head_local
 }
 
 struct HeadDestructure<'a> {
@@ -199,7 +215,7 @@ fn find_matching_base(
         let Some(base_destruct) = parse_base_destructure(*stmt, ctx.base_src) else {
             continue;
         };
-        if !key_sets_match(&base_destruct.keys, &head_group.keys) {
+        if !fields_match(&base_destruct.fields, &head_group.fields) {
             continue;
         }
         if !sources_equivalent(ctx, base_destruct.source, head_group.source_node) {
@@ -212,7 +228,15 @@ fn find_matching_base(
 
 struct BaseDestructure<'a> {
     source: Node<'a>,
-    keys: Vec<String>,
+    fields: Vec<BaseField>,
+}
+
+struct BaseField {
+    key: String,
+    /// The local introduced into the base scope for this destructure field:
+    /// the key itself when the pattern is shorthand `{ K }`, the rename
+    /// target when the pattern is `{ K: L }`.
+    local: String,
 }
 
 fn parse_base_destructure<'a>(stmt: Node<'a>, src: &str) -> Option<BaseDestructure<'a>> {
@@ -221,34 +245,54 @@ fn parse_base_destructure<'a>(stmt: Node<'a>, src: &str) -> Option<BaseDestructu
     if name.kind() != "object_pattern" {
         return None;
     }
-    let mut keys = Vec::new();
+    let mut fields = Vec::new();
     for child in raw_comparable_children(name) {
-        keys.push(base_pattern_key(child, src)?);
+        fields.push(base_pattern_field(child, src)?);
     }
     let source = decl.child_by_field_name("value")?;
-    Some(BaseDestructure { source, keys })
+    Some(BaseDestructure { source, fields })
 }
 
-fn base_pattern_key(node: Node, src: &str) -> Option<String> {
+fn base_pattern_field(node: Node, src: &str) -> Option<BaseField> {
     match node.kind() {
-        "shorthand_property_identifier_pattern" => Some(node_text(node, src)),
+        "shorthand_property_identifier_pattern" => {
+            let name = node_text(node, src);
+            Some(BaseField {
+                key: name.clone(),
+                local: name,
+            })
+        }
         "pair_pattern" => {
             let key = node.child_by_field_name("key")?;
-            Some(node_text(key, src))
+            let value = node.child_by_field_name("value")?;
+            if value.kind() != "identifier" {
+                return None;
+            }
+            Some(BaseField {
+                key: node_text(key, src),
+                local: node_text(value, src),
+            })
         }
         _ => None,
     }
 }
 
-fn key_sets_match(base_keys: &[String], head_keys: &[String]) -> bool {
-    if base_keys.len() != head_keys.len() {
+/// Field-set equality with key→local mapping. For every base field, the
+/// head must have a field with the same key whose narrow local matches
+/// the base's local. Order need not match between sides.
+fn fields_match(base_fields: &[BaseField], head_fields: &[HeadField]) -> bool {
+    if base_fields.len() != head_fields.len() {
         return false;
     }
-    let mut base_sorted = base_keys.to_vec();
-    base_sorted.sort();
-    let mut head_sorted = head_keys.to_vec();
-    head_sorted.sort();
-    base_sorted == head_sorted
+    for bf in base_fields {
+        let Some(hf) = head_fields.iter().find(|h| h.key == bf.key) else {
+            return false;
+        };
+        if hf.narrow_local != bf.local {
+            return false;
+        }
+    }
+    true
 }
 
 fn sources_equivalent(ctx: &WalkCtx, base_src_node: Node, head_src_node: Node) -> bool {

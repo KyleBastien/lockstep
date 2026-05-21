@@ -10,15 +10,18 @@ use tree_sitter::Node;
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::async_propagation::{maybe_unwrap_await, try_callable_async_propagation};
+use crate::callback_param_rename::{is_param_rename_pair, maybe_apply_param_rename};
 use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
 use crate::defensive_log_guard::maybe_unwrap_log_guard;
 use crate::defensive_null_guard::apply_defensive_null_guard;
 use crate::destructure_then_narrow::apply_destructure_then_narrow;
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
 use crate::handler_arrow_expansion::maybe_unwrap_handler_arrow_expansion;
+use crate::helper_array_unwrap::apply_helper_array_unwrap;
 use crate::helper_call_site_substitution::{
     apply_helper_call_site_substitution, is_helper_call_site_alias_pair,
 };
+use crate::helper_zero_arg_alias::{apply_helper_zero_arg_alias, is_helper_zero_arg_alias_pair};
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
 use crate::non_null_alias_local::{apply_non_null_alias_local, is_non_null_alias_pair};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
@@ -36,8 +39,8 @@ use crate::unknown_catch_narrowing::{
 
 pub use crate::entry::compare;
 pub(super) use crate::walk_ctx::{
-    CacheAlias, CatchNarrowedLocal, HelperCallSiteAlias, NarrowedRequestField, NonNullAliasLocal,
-    Side, TransientLocal, WalkCtx,
+    CacheAlias, CatchNarrowedLocal, HelperCallSiteAlias, HelperZeroArgAlias, NarrowedRequestField,
+    NonNullAliasLocal, ParamRename, Side, TransientLocal, WalkCtx,
 };
 
 pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Finding>) {
@@ -60,6 +63,9 @@ pub(super) fn walk(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec<Fin
     {
         return;
     }
+    if maybe_apply_param_rename(ctx, base, head, findings) {
+        return;
+    }
     walk_regular(ctx, base, head, findings);
 }
 
@@ -73,9 +79,11 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
         || is_catch_narrowed_pair(ctx, base, head)
         || is_unknown_catch_narrowing_pair(ctx, base, head)
         || is_helper_call_site_alias_pair(ctx, base, head)
+        || is_helper_zero_arg_alias_pair(ctx, base, head)
         || is_pure_narrowing_helper_pair(ctx, base, head)
         || is_array_first_pair(ctx, base, head)
         || is_nullish_widening_pair(ctx, base, head)
+        || is_param_rename_pair(ctx, base, head)
 }
 
 /// Block- and callable-scoped pre-empts that may consume the pair by running
@@ -114,6 +122,8 @@ fn block_rule_consumed(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec
     applied |= apply_defensive_null_guard(&mut child_ctx, base, head);
     applied |= apply_helper_call_site_substitution(&mut child_ctx, base, head);
     applied |= apply_destructure_then_narrow(&mut child_ctx, base, head);
+    applied |= apply_helper_array_unwrap(&mut child_ctx, base, head);
+    applied |= apply_helper_zero_arg_alias(&mut child_ctx, base, head);
     if applied {
         walk_regular(&child_ctx, base, head, findings);
         return true;

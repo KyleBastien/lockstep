@@ -214,6 +214,57 @@ fn rule_gated_off_by_default() {
 }
 
 #[test]
+fn gap4_base_rename_pair_pattern_matches_head_raw_then_narrow() {
+    let base = "function f(subscription) {
+        const { user: userUuid, client } = subscription;
+        return [userUuid, client];
+    }";
+    assert_equiv_with(
+        base,
+        "function f(subscription) {
+            const { user: userRaw, client: clientRaw } = subscription;
+            const userUuid = asString(userRaw) ?? \"\";
+            const client = asString(clientRaw) ?? \"\";
+            return [userUuid, client];
+        }",
+    );
+}
+
+#[test]
+fn gap4_rejects_when_base_rename_target_differs_from_head_narrow_local() {
+    let base = "function f(subscription) {
+        const { user: userUuid, client } = subscription;
+        return [userUuid, client];
+    }";
+    assert_flagged_with(
+        base,
+        "function f(subscription) {
+            const { user: userRaw, client: clientRaw } = subscription;
+            const otherName = asString(userRaw) ?? \"\";
+            const client = asString(clientRaw) ?? \"\";
+            return [otherName, client];
+        }",
+    );
+}
+
+#[test]
+fn gap4_all_base_rename_pair_patterns_match() {
+    let base = "function f(src) {
+        const { a: x, b: y } = src;
+        return [x, y];
+    }";
+    assert_equiv_with(
+        base,
+        "function f(src) {
+            const { a: aRaw, b: bRaw } = src;
+            const x = asString(aRaw) ?? \"\";
+            const y = asString(bRaw) ?? \"\";
+            return [x, y];
+        }",
+    );
+}
+
+#[test]
 fn standalone_destructure_does_not_false_fire() {
     let base = "function f(src) {
         const { foo } = src;

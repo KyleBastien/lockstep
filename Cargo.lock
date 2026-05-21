@@ -435,6 +435,7 @@ dependencies = [
  "lockstep-core",
  "lockstep-engine",
  "serde_json",
+ "toml",
  "tracing",
  "tracing-subscriber",
 ]

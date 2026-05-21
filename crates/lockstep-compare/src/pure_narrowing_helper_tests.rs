@@ -43,9 +43,12 @@ fn rejects_helper_not_in_config() {
 }
 
 #[test]
-fn rejects_helper_in_config_but_not_declared() {
+fn accepts_helper_in_config_without_inline_declaration() {
+    // v0.1.15+: configured helpers no longer need an inline `function HELPER`
+    // declaration to be recognized. The config list is sufficient — covers
+    // the common real-world case where the helper is imported.
     let head = "function f(obj) { return asString(obj.foo) ?? \"\"; }";
-    assert_flagged_raw(BASE_BARE_READ, head, &opts_for(&["asString"]));
+    assert_equiv_raw(BASE_BARE_READ, head, &opts_for(&["asString"]));
 }
 
 #[test]

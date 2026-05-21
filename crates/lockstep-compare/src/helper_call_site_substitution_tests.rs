@@ -204,6 +204,48 @@ fn rule_gated_off_by_default() {
 }
 
 #[test]
+fn gap5_inline_call_in_object_literal_absorbs() {
+    let base = "function f(subscription) {
+            return new Cmd({ params: { uuid: subscription.uuid, event: \"x\" } });
+        }";
+    assert_equiv_with(
+        base,
+        "function f(subscription) {
+            return new Cmd({ params: { uuid: asString(subscription.uuid) ?? \"\", event: \"x\" } });
+        }",
+    );
+}
+
+#[test]
+fn gap5_inline_call_as_call_argument_absorbs() {
+    let base = "function f(subscription) { return doIt(subscription.uuid); }";
+    assert_equiv_with(
+        base,
+        "function f(subscription) { return doIt(asString(subscription.uuid) ?? \"\"); }",
+    );
+}
+
+#[test]
+fn gap5_inline_call_in_template_substitution_absorbs() {
+    let base = "function f(subscription) { return `id=${subscription.uuid}`; }";
+    assert_equiv_with(
+        base,
+        "function f(subscription) { return `id=${asString(subscription.uuid) ?? \"\"}`; }",
+    );
+}
+
+#[test]
+fn gap5_rejects_bare_inline_call_without_default() {
+    // Plan explicitly recommends rejecting HELPER(EXPR) without ?? DEFAULT —
+    // too risky without knowing the helper's exact return type at this site.
+    let base = "function f(subscription) { return doIt(subscription.uuid); }";
+    assert_flagged_with(
+        base,
+        "function f(subscription) { return doIt(asString(subscription.uuid)); }",
+    );
+}
+
+#[test]
 fn rejects_expr_mismatch_at_use_site() {
     let base = "function f(obj) { return `name: ${obj.bar}`; }";
     assert_flagged_with(

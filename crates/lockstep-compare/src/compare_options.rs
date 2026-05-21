@@ -4,6 +4,7 @@
 //! itself lives in `walk.rs`; this module exists purely to keep that file
 //! focused on the dispatch logic.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 pub struct CompareOptions {
@@ -99,4 +100,16 @@ pub struct CompareOptions {
     /// equivalent to base `const { K_i, ... } = SRC;`. Composes with
     /// `allow_pure_narrowing_helper`. See `destructure_then_narrow`.
     pub allow_destructure_then_narrow: bool,
+    /// Map of array-returning narrowing helper name → field name on the
+    /// base shape that the helper unwraps. When set and the head pattern
+    /// `const RAW = SRC; const LOCAL = HELPER(RAW);` is observed, a
+    /// scope-local alias `LOCAL` ↔ base `BASE_LOCAL.FIELD` is registered.
+    /// See `helper_array_unwrap`.
+    pub narrowing_helpers_unwrap: HashMap<String, String>,
+    /// Map of zero-argument config-reader helper name → base expression
+    /// path the helper reads. When set and the head pattern
+    /// `const LOCAL = HELPER();` is observed, subsequent head accesses
+    /// `LOCAL.X` compare equal to base `BASE_PATH.X`. See
+    /// `helper_zero_arg_alias`.
+    pub narrowing_helpers_aliases: HashMap<String, String>,
 }
