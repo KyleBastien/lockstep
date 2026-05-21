@@ -205,6 +205,74 @@ fn const_used_across_three_templates_and_bare_arg_absorbs() {
 }
 
 #[test]
+fn gap1_promise_catch_arrow_callback_const_extract_absorbs() {
+    let base = "function f(p) {
+        return p.catch((err) => {
+            this.logger.error(`x ${err.message}`);
+            return null;
+        });
+    }";
+    let head = "function f(p) {
+        return p.catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            this.logger.error(`x ${message}`);
+            return null;
+        });
+    }";
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn gap1_promise_catch_arrow_callback_inline_ternary_absorbs() {
+    let base = "function f(p) {
+        return p.catch((err) => {
+            this.logger.error(`x ${err.message}`);
+        });
+    }";
+    let head = "function f(p) {
+        return p.catch((err) => {
+            this.logger.error(`x ${err instanceof Error ? err.message : String(err)}`);
+        });
+    }";
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn gap1_rejects_arbitrary_arrow_callback_not_in_catch() {
+    // Same shape but the arrow isn't a `.catch` callback. Must stay flagged.
+    let base = "function f(arr) { return arr.map((err) => err.message); }";
+    let head = "function f(arr) {
+        return arr.map((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            return message;
+        });
+    }";
+    assert_flagged_raw(base, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
+fn gap1_real_world_logger_error_template_with_message_absorbs() {
+    let base = "async function fetchClientData(client) {
+        try {
+            return await get(client);
+        } catch (err) {
+            this.logger.error(`Couldn't fetch client data - ${client} - ${err.message}`);
+            return null;
+        }
+    }";
+    let head = "async function fetchClientData(client) {
+        try {
+            return await get(client);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.logger.error(`Couldn't fetch client data - ${client} - ${message}`);
+            return null;
+        }
+    }";
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
 fn two_catches_same_try_with_different_bindings_absorbs() {
     let base = "function f() {
         try {

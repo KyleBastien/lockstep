@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use lockstep_core::Finding;
@@ -28,6 +29,8 @@ pub(crate) struct OptsOverrides {
     pub(crate) narrowing_helpers: Option<Vec<String>>,
     pub(crate) helper_call_site_substitution: bool,
     pub(crate) destructure_then_narrow: bool,
+    pub(crate) narrowing_helpers_unwrap: Option<HashMap<String, String>>,
+    pub(crate) narrowing_helpers_aliases: Option<HashMap<String, String>>,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -61,6 +64,8 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         narrowing_helpers: over.narrowing_helpers.unwrap_or_default(),
         allow_helper_call_site_substitution: over.helper_call_site_substitution,
         allow_destructure_then_narrow: over.destructure_then_narrow,
+        narrowing_helpers_unwrap: over.narrowing_helpers_unwrap.unwrap_or_default(),
+        narrowing_helpers_aliases: over.narrowing_helpers_aliases.unwrap_or_default(),
     }
 }
 

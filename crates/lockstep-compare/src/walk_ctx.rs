@@ -4,6 +4,7 @@
 //! state-shape changes (new alias kinds, new flags) don't bloat the dispatch
 //! module. All fields are crate-private.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::compare_options::CompareOptions;
@@ -35,6 +36,8 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_helper_call_site_substitution: bool,
     pub(super) allow_destructure_then_narrow: bool,
     pub(super) narrowing_helpers: Vec<String>,
+    pub(super) narrowing_helpers_unwrap: HashMap<String, String>,
+    pub(super) narrowing_helpers_aliases: HashMap<String, String>,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -65,6 +68,17 @@ pub(super) struct WalkCtx<'a> {
     /// a base-sync / head-async divergence. Allows `await EXPR` on head where
     /// base has bare `EXPR`.
     pub(super) async_propagation_active: bool,
+    /// Scope-bounded identifier rename mappings — populated when comparing
+    /// two callbacks (arrow functions or function expressions) whose single
+    /// bare-identifier parameter has been renamed. Inside the callback
+    /// body, `head_name` reads compare equal to base `base_name` reads, and
+    /// vice versa. See `callback_param_rename`.
+    pub(super) param_renames: Vec<ParamRename>,
+    /// Zero-arg config-reader helper aliases. A head identifier `LOCAL` is
+    /// substituted with the registered base path text (e.g. `config.pp_config?`)
+    /// when comparing member-expression / identifier pairs. See
+    /// `helper_zero_arg_alias`.
+    pub(super) helper_zero_arg_aliases: Vec<HelperZeroArgAlias>,
 }
 
 impl<'a> WalkCtx<'a> {
@@ -101,6 +115,8 @@ impl<'a> WalkCtx<'a> {
             allow_helper_call_site_substitution: opts.allow_helper_call_site_substitution,
             allow_destructure_then_narrow: opts.allow_destructure_then_narrow,
             narrowing_helpers: opts.narrowing_helpers.clone(),
+            narrowing_helpers_unwrap: opts.narrowing_helpers_unwrap.clone(),
+            narrowing_helpers_aliases: opts.narrowing_helpers_aliases.clone(),
             ignored_base_starts: Vec::new(),
             ignored_head_starts: Vec::new(),
             aliases: Vec::new(),
@@ -111,6 +127,8 @@ impl<'a> WalkCtx<'a> {
             recognized_narrowing_helpers: Vec::new(),
             helper_call_site_aliases: Vec::new(),
             async_propagation_active: false,
+            param_renames: Vec::new(),
+            helper_zero_arg_aliases: Vec::new(),
         }
     }
 
@@ -127,8 +145,33 @@ impl<'a> WalkCtx<'a> {
         s.catch_narrowed_locals.clear();
         s.helper_call_site_aliases.clear();
         s.async_propagation_active = false;
+        s.param_renames.clear();
+        s.helper_zero_arg_aliases.clear();
         s
     }
+}
+
+/// A head local declared as `const LOCAL = HELPER();` where `HELPER` is
+/// registered in `narrowing_helpers_aliases`. The local name on head
+/// stands in for `base_path` on base; when comparing member-expression /
+/// identifier nodes, head occurrences of `LOCAL[.X.Y…]` compare equal to
+/// base `base_path[.X.Y…]`. The path text typically contains an optional
+/// chain marker (e.g. `config.pp_config?`) which is preserved in
+/// substitutions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct HelperZeroArgAlias {
+    pub(super) head_local: String,
+    pub(super) base_path: String,
+}
+
+/// A scope-bounded identifier rename mapping. Established when comparing
+/// two callbacks (arrow functions or function expressions) whose single
+/// bare-identifier parameter has been renamed. The mapping holds for the
+/// lexical scope of the callback body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ParamRename {
+    pub(super) head_name: String,
+    pub(super) base_name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

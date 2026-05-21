@@ -319,4 +319,40 @@ ignore = [
     "**/dist/**",
     "**/build/**",
 ]
+
+# v0.1.15 helper-alias tables. Both default to empty; set per workspace.
+#
+# `narrowing_helpers_unwrap` maps an array-returning narrowing helper to the
+# field it unwraps on the base shape. Enables Gap 2A: head
+#   const RAW = SOURCE;
+#   const LOCAL = HELPER(RAW);
+# is paired with base `const ALIAS = SOURCE;` and registers
+# `LOCAL ↔ ALIAS.<field>`. Example:
+#   [narrowing_helpers_unwrap]
+#   readAdminRows = "data"
+[narrowing_helpers_unwrap]
+
+# `narrowing_helpers_aliases` maps a zero-argument config-reader helper to
+# the base expression path it reads. Enables Gap 2B: head
+#   const LOCAL = HELPER();
+# strips the declaration and substitutes head reads of `LOCAL[.X.Y…]` with
+# base reads of `<path>[.X.Y…]`. Example:
+#   [narrowing_helpers_aliases]
+#   readPpConfig = "config.pp_config?"
+[narrowing_helpers_aliases]
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::DEFAULT_CONFIG_TOML;
+    use lockstep_config::Config;
+
+    #[test]
+    fn default_config_toml_parses() {
+        let parsed: Config =
+            toml::from_str(DEFAULT_CONFIG_TOML).expect("default config TOML should parse cleanly");
+        assert_eq!(parsed.default_branch, "main");
+        assert!(parsed.narrowing_helpers_unwrap.is_empty());
+        assert!(parsed.narrowing_helpers_aliases.is_empty());
+    }
+}

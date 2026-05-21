@@ -3,6 +3,7 @@
 //! Default location is `.lockstep/config.toml` relative to the repo root.
 //! CLI flags override loaded values via the [`Config::override_with`] mutators.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -51,6 +52,12 @@ pub struct Config {
     pub narrowing_helpers: Vec<String>,
     pub allow_helper_call_site_substitution: bool,
     pub allow_destructure_then_narrow: bool,
+    /// Map of array-returning narrowing helper name → field name on the
+    /// base shape that the helper unwraps. Enables the Gap 2A alias.
+    pub narrowing_helpers_unwrap: HashMap<String, String>,
+    /// Map of zero-argument config-reader helper name → base path text the
+    /// helper reads. Enables the Gap 2B alias.
+    pub narrowing_helpers_aliases: HashMap<String, String>,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -90,6 +97,8 @@ impl Default for Config {
             narrowing_helpers: Vec::new(),
             allow_helper_call_site_substitution: false,
             allow_destructure_then_narrow: false,
+            narrowing_helpers_unwrap: HashMap::new(),
+            narrowing_helpers_aliases: HashMap::new(),
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -178,6 +187,8 @@ mod tests {
         assert!(!c.allow_helper_call_site_substitution);
         assert!(!c.allow_destructure_then_narrow);
         assert!(c.narrowing_helpers.is_empty());
+        assert!(c.narrowing_helpers_unwrap.is_empty());
+        assert!(c.narrowing_helpers_aliases.is_empty());
         assert_eq!(
             c.defensive_log_guard_methods,
             vec!["debug", "info", "warn", "error", "trace", "log"]

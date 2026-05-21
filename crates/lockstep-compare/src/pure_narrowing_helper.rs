@@ -53,14 +53,24 @@ use tree_sitter::Node;
 use crate::node_utils::{compact_node_text, first_named_child, node_text, raw_comparable_children};
 use crate::walk::{walk, WalkCtx};
 
-/// One-time top-level scan: registers each `function HELPER(...) { ... }`
-/// declaration whose name is configured. Pushes its byte start onto
-/// `ignored_head_starts` so the structural compare won't see the extra
-/// declaration, and records the name in `recognized_narrowing_helpers` so
-/// call-site matching can verify the helper is locally declared.
+/// One-time top-level scan: registers each configured helper as recognized
+/// for call-site equivalence and additionally filters any inline
+/// `function HELPER(...) { ... }` declaration so the structural compare
+/// doesn't see the extra body on head.
+///
+/// Pre-v0.1.15 the rule required an inline declaration to register the
+/// helper; v0.1.15 drops that requirement so imported helpers (the common
+/// real-world shape) are recognized. The opt-in is now strictly the pair
+/// `allow_pure_narrowing_helper = true` + an explicit entry in
+/// `narrowing_helpers`.
 pub(super) fn register_narrowing_helper_declarations(ctx: &mut WalkCtx, head_root: Node) {
     if !ctx.allow_pure_narrowing_helper || ctx.narrowing_helpers.is_empty() {
         return;
+    }
+    for name in ctx.narrowing_helpers.clone() {
+        if !ctx.recognized_narrowing_helpers.contains(&name) {
+            ctx.recognized_narrowing_helpers.push(name);
+        }
     }
     let mut cursor = head_root.walk();
     for child in head_root.children(&mut cursor) {
@@ -74,9 +84,6 @@ pub(super) fn register_narrowing_helper_declarations(ctx: &mut WalkCtx, head_roo
             continue;
         }
         ctx.ignored_head_starts.push(child.start_byte());
-        if !ctx.recognized_narrowing_helpers.contains(&name) {
-            ctx.recognized_narrowing_helpers.push(name);
-        }
     }
 }
 

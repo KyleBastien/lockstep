@@ -5,6 +5,7 @@ mod align;
 mod array_first_equivalence;
 mod async_propagation;
 mod callable_equivalence;
+mod callback_param_rename;
 mod class_equivalence;
 mod compare_options;
 mod dead_defensive_optional_chain;
@@ -14,7 +15,9 @@ mod destructure_then_narrow;
 mod entry;
 mod findings;
 mod handler_arrow_expansion;
+mod helper_array_unwrap;
 mod helper_call_site_substitution;
+mod helper_zero_arg_alias;
 mod iife_async_wrapper;
 mod node_utils;
 mod non_null_alias_local;
@@ -38,6 +41,8 @@ pub use entry::compare;
 #[cfg(test)]
 mod async_propagation_tests;
 #[cfg(test)]
+mod callback_param_rename_tests;
+#[cfg(test)]
 mod dead_defensive_optional_chain_tests;
 #[cfg(test)]
 mod defensive_log_guard_tests;
@@ -48,7 +53,11 @@ mod destructure_then_narrow_tests;
 #[cfg(test)]
 mod handler_arrow_expansion_tests;
 #[cfg(test)]
+mod helper_array_unwrap_tests;
+#[cfg(test)]
 mod helper_call_site_substitution_tests;
+#[cfg(test)]
+mod helper_zero_arg_alias_tests;
 #[cfg(test)]
 mod iife_async_wrapper_tests;
 #[cfg(test)]

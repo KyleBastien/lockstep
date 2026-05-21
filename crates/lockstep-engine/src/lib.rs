@@ -105,6 +105,8 @@ fn check_pair(
             || config.allow_pure_narrowing_helper,
         allow_destructure_then_narrow: config.allow_destructure_then_narrow
             || config.allow_pure_narrowing_helper,
+        narrowing_helpers_unwrap: config.narrowing_helpers_unwrap.clone(),
+        narrowing_helpers_aliases: config.narrowing_helpers_aliases.clone(),
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
@@ -238,6 +240,66 @@ mod tests {
         );
         let report = run(&Config::default(), &default_opts(&root)).unwrap();
         assert!(!report.findings.is_empty());
+    }
+
+    fn assert_engine_approves_with_config(base: &str, head: &str, config: Config) {
+        let tmp = TempDir::new().unwrap();
+        let root = setup_migration_repo(&tmp, "src/h.js", base, "src/h.ts", head);
+        let report = run(&config, &default_opts(&root)).unwrap();
+        assert_eq!(
+            report.findings.len(),
+            0,
+            "expected engine to resolve cleanly; got: {:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn narrowing_helpers_unwrap_table_threads_through_engine() {
+        let mut unwrap_table = std::collections::HashMap::new();
+        unwrap_table.insert("readAdminRows".to_string(), "data".to_string());
+        let config = Config {
+            allow_pure_narrowing_helper: true,
+            narrowing_helpers: vec!["readAdminRows".to_string()],
+            narrowing_helpers_unwrap: unwrap_table,
+            report_all_findings: true,
+            ..Config::default()
+        };
+        assert_engine_approves_with_config(
+            "async function f(client) {\n\
+                const clientAdmins = await this.repo.getAdmins(client);\n\
+                return clientAdmins.data;\n\
+            }\n",
+            "async function f(client) {\n\
+                const clientAdminsRaw = await this.repo.getAdmins(client);\n\
+                const adminRows = readAdminRows(clientAdminsRaw);\n\
+                return adminRows;\n\
+            }\n",
+            config,
+        );
+    }
+
+    #[test]
+    fn narrowing_helpers_aliases_table_threads_through_engine() {
+        let mut aliases_table = std::collections::HashMap::new();
+        aliases_table.insert("readPpConfig".to_string(), "config.pp_config?".to_string());
+        let config = Config {
+            allow_pure_narrowing_helper: true,
+            narrowing_helpers: vec!["readPpConfig".to_string()],
+            narrowing_helpers_aliases: aliases_table,
+            report_all_findings: true,
+            ..Config::default()
+        };
+        assert_engine_approves_with_config(
+            "function f(config) {\n\
+                return config.pp_config?.host;\n\
+            }\n",
+            "function f(config) {\n\
+                const ppConfig = readPpConfig();\n\
+                return ppConfig.host;\n\
+            }\n",
+            config,
+        );
     }
 
     #[test]
