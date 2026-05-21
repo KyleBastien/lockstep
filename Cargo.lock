@@ -423,11 +423,11 @@ checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
 name = "lockstep"
-version = "0.1.12"
+version = "0.1.13"
 
 [[package]]
 name = "lockstep-cli"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "clap",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-compare"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "lockstep-core",
  "thiserror",
@@ -451,7 +451,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-config"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "globset",
  "serde",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-core"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "serde",
  "serde_json",
@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-engine"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "git2",
@@ -487,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-mcp"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "lockstep-config",
@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-normalize"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "thiserror",
  "tree-sitter",
@@ -510,7 +510,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-pairing"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "git2",
  "globset",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "lockstep-strip"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "thiserror",
  "tree-sitter",
