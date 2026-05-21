@@ -15,11 +15,19 @@ fn head_inline(fallback: &str) -> String {
 }
 
 fn assert_inline_equiv(fallback: &str) {
-    assert_equiv_raw(BASE_INLINE, &head_inline(fallback), &unknown_catch_narrowing_opts());
+    assert_equiv_raw(
+        BASE_INLINE,
+        &head_inline(fallback),
+        &unknown_catch_narrowing_opts(),
+    );
 }
 
 fn assert_inline_flagged(fallback: &str) {
-    assert_flagged_raw(BASE_INLINE, &head_inline(fallback), &unknown_catch_narrowing_opts());
+    assert_flagged_raw(
+        BASE_INLINE,
+        &head_inline(fallback),
+        &unknown_catch_narrowing_opts(),
+    );
 }
 
 #[test]

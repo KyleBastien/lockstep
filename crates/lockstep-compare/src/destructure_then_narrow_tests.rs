@@ -132,7 +132,8 @@ fn rejects_base_destructure_with_extra_field() {
 
 #[test]
 fn rejects_narrow_with_unallowlisted_helper() {
-    let head = "function asString(value) { return typeof value === \"string\" ? value : undefined; }
+    let head =
+        "function asString(value) { return typeof value === \"string\" ? value : undefined; }
         function f(src) {
             const { foo: fooRaw, bar: barRaw } = src;
             const foo = asString(fooRaw) ?? \"\";

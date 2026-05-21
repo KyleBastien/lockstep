@@ -80,7 +80,13 @@ fn pair_groups(child_ctx: &mut WalkCtx, base_stmts: &[Node], head_stmts: &[Node]
             i += group.consumed;
             continue;
         };
-        ignore_group_bytes(child_ctx, base_stmts[base_idx], head_stmts, i, group.consumed);
+        ignore_group_bytes(
+            child_ctx,
+            base_stmts[base_idx],
+            head_stmts,
+            i,
+            group.consumed,
+        );
         paired_base.push(base_idx);
         applied = true;
         i += group.consumed;

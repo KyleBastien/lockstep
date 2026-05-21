@@ -133,11 +133,7 @@ fn alternative_is_string_call_with_nullish(call: Node, src: &str, err_name: &str
 /// `ERR?.PROP_A ?? ERR?.PROP_B ?? "literal"` — `??` chain whose leaves are
 /// optional-chain accesses on `ERR` and at least one terminal string literal.
 /// Accepts arbitrary `??` nesting (chains are left-associative in JS).
-fn alternative_is_chained_optional_prop_or_literal(
-    node: Node,
-    src: &str,
-    err_name: &str,
-) -> bool {
+fn alternative_is_chained_optional_prop_or_literal(node: Node, src: &str, err_name: &str) -> bool {
     if nullish_pair(node, src).is_none() {
         return false;
     }
@@ -154,12 +150,7 @@ struct ChainLeafCounts {
     string_leaves: usize,
 }
 
-fn walk_chain_leaves(
-    node: Node,
-    src: &str,
-    err_name: &str,
-    counts: &mut ChainLeafCounts,
-) -> bool {
+fn walk_chain_leaves(node: Node, src: &str, err_name: &str, counts: &mut ChainLeafCounts) -> bool {
     if node.kind() == "string" {
         counts.string_leaves += 1;
         return true;
