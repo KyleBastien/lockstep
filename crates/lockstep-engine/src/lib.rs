@@ -257,9 +257,11 @@ mod tests {
             "src/h.ts",
             head,
         );
-        let mut config = Config::default();
-        config.allow_pure_narrowing_helper = true;
-        config.narrowing_helpers = vec!["asString".to_string()];
+        let config = Config {
+            allow_pure_narrowing_helper: true,
+            narrowing_helpers: vec!["asString".to_string()],
+            ..Config::default()
+        };
         let report = run(&config, &default_opts(&root)).unwrap();
         assert_eq!(
             report.findings.len(),
