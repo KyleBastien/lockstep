@@ -12,6 +12,7 @@ mod defensive_log_guard;
 mod defensive_null_guard;
 mod entry;
 mod findings;
+mod handler_arrow_expansion;
 mod iife_async_wrapper;
 mod node_utils;
 mod non_null_alias_local;
@@ -39,6 +40,8 @@ mod dead_defensive_optional_chain_tests;
 mod defensive_log_guard_tests;
 #[cfg(test)]
 mod defensive_null_guard_tests;
+#[cfg(test)]
+mod handler_arrow_expansion_tests;
 #[cfg(test)]
 mod iife_async_wrapper_tests;
 #[cfg(test)]

@@ -14,6 +14,7 @@ use crate::class_equivalence::{is_cache_alias_pair, walk_class_body};
 use crate::defensive_log_guard::maybe_unwrap_log_guard;
 use crate::defensive_null_guard::apply_defensive_null_guard;
 use crate::findings::{arity_mismatch, kind_mismatch, token_mismatch, unmatched_child};
+use crate::handler_arrow_expansion::maybe_unwrap_handler_arrow_expansion;
 use crate::node_utils::{is_meaningful_unnamed, is_trivia, raw_comparable_children};
 use crate::non_null_alias_local::{apply_non_null_alias_local, is_non_null_alias_pair};
 use crate::nullish_widening_equivalence::is_nullish_widening_pair;
@@ -81,6 +82,9 @@ fn block_rule_consumed(ctx: &WalkCtx, base: Node, head: Node, findings: &mut Vec
         return true;
     }
     if maybe_unwrap_log_guard(ctx, base, head, findings) {
+        return true;
+    }
+    if maybe_unwrap_handler_arrow_expansion(ctx, base, head, findings) {
         return true;
     }
     if is_method_definition_pair(base, head)
@@ -347,6 +351,6 @@ fn is_method_definition_pair(base: Node, head: Node) -> bool {
 fn is_atomic(kind: &str) -> bool {
     matches!(
         kind,
-        "string" | "template_string" | "regex" | "number" | "identifier" | "property_identifier"
+        "string" | "regex" | "number" | "identifier" | "property_identifier"
     )
 }

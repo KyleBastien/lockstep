@@ -62,6 +62,20 @@ fn const_extraction_absorbs_with_alias_resolution() {
 }
 
 #[test]
+fn const_extraction_resolves_inside_template_literal() {
+    let base = "function f() {
+        try { work(); } catch (err) { logger.error(`error: ${err.message}`); }
+    }";
+    let head = "function f() {
+        try { work(); } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error(`error: ${message}`);
+        }
+    }";
+    assert_equiv_raw(base, head, &unknown_catch_narrowing_opts());
+}
+
+#[test]
 fn nested_catch_uses_inner_binding() {
     let base = "function f() {
         try {
