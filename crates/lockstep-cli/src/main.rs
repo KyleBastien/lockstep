@@ -304,6 +304,10 @@ allow_unknown_catch_narrowing = false
 allow_promise_settled_discrimination = false
 allow_pure_narrowing_helper = false
 narrowing_helpers = []
+# When `allow_pure_narrowing_helper = true`, the two flags below cascade on
+# automatically. Set either to `true` explicitly to enable only that rule.
+allow_helper_call_site_substitution = false
+allow_destructure_then_narrow = false
 report_all_findings = true
 ignore = [
     "**/*.test.ts",

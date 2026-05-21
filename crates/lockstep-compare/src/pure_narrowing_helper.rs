@@ -155,7 +155,7 @@ fn ternary_parts<'a>(node: Node<'a>) -> Option<(Node<'a>, Node<'a>, Node<'a>)> {
 /// Literal "safe defaults" the migration may substitute when the type
 /// predicate is false: empty container, scalar literal, or the bare
 /// `undefined` identifier.
-fn is_safe_default(node: Node, src: &str) -> bool {
+pub(super) fn is_safe_default(node: Node, src: &str) -> bool {
     match node.kind() {
         "string" | "number" | "null" | "true" | "false" => true,
         "undefined" => true,
@@ -195,7 +195,7 @@ fn unwrap_nullish_default_call<'a>(head: Node<'a>, src: &str) -> Option<Node<'a>
     Some(left)
 }
 
-fn recognized_helper_name(ctx: &WalkCtx, call: Node) -> Option<String> {
+pub(super) fn recognized_helper_name(ctx: &WalkCtx, call: Node) -> Option<String> {
     let callee = call.child_by_field_name("function")?;
     if callee.kind() != "identifier" {
         return None;
@@ -207,7 +207,7 @@ fn recognized_helper_name(ctx: &WalkCtx, call: Node) -> Option<String> {
         .map(|_| name)
 }
 
-fn sole_call_argument(call: Node) -> Option<Node> {
+pub(super) fn sole_call_argument(call: Node) -> Option<Node> {
     let arguments = call.child_by_field_name("arguments")?;
     let args: Vec<Node> = raw_comparable_children(arguments)
         .into_iter()
