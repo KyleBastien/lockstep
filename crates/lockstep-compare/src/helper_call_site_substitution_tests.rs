@@ -256,3 +256,53 @@ fn rejects_expr_mismatch_at_use_site() {
         }",
     );
 }
+
+// --- v0.1.17 Gap 2 — `?.` tolerance on helper arg vs base reference ---
+
+#[test]
+fn helper_arg_optional_chain_absorbs_against_base_without_chain() {
+    let base = "function f(clientData) { return `${clientData.subdomain}`; }";
+    assert_equiv_with(
+        base,
+        "function f(clientData) {
+            const subdomain = asString(clientData?.subdomain) ?? \"\";
+            return `${subdomain}`;
+        }",
+    );
+}
+
+#[test]
+fn helper_arg_optional_chain_absorbs_when_both_sides_have_chain() {
+    let base = "function f(clientData) { return `${clientData?.subdomain}`; }";
+    assert_equiv_with(
+        base,
+        "function f(clientData) {
+            const subdomain = asString(clientData?.subdomain) ?? \"\";
+            return `${subdomain}`;
+        }",
+    );
+}
+
+#[test]
+fn helper_arg_with_different_root_identifier_still_rejected() {
+    let base = "function f(clientData, otherData) { return `${clientData.subdomain}`; }";
+    assert_flagged_with(
+        base,
+        "function f(clientData, otherData) {
+            const subdomain = asString(otherData?.subdomain) ?? \"\";
+            return `${subdomain}`;
+        }",
+    );
+}
+
+#[test]
+fn helper_arg_without_nullish_default_still_rejected() {
+    let base = "function f(clientData) { return `${clientData.subdomain}`; }";
+    assert_flagged_with(
+        base,
+        "function f(clientData) {
+            const subdomain = asString(clientData?.subdomain);
+            return `${subdomain}`;
+        }",
+    );
+}

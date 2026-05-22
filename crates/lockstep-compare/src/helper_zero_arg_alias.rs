@@ -13,10 +13,14 @@
 //! When `HELPER` appears in `narrowing_helpers_aliases` with mapped path
 //! `BASE_PATH`, the declaration is stripped from head and an alias
 //! `LOCAL` ↔ `BASE_PATH` is registered. Subsequent head reads of
-//! `LOCAL[.X.Y…]` compare equal to base reads of `BASE_PATH[.X.Y…]`. The
-//! `BASE_PATH` text usually contains an optional-chain marker
-//! (`config.cdn_config?`) — this is preserved so head's removal of the
-//! optional chain composes with the alias.
+//! `LOCAL[.X.Y…]` compare equal to base reads of `BASE_PATH[.X.Y…]`.
+//!
+//! `BASE_PATH` may optionally include a trailing `?` to mark the alias as a
+//! site where base places an optional-chain (`config.cdn_config?`). Both
+//! `"config.cdn_config?"` and `"config.cdn_config"` are accepted: the
+//! matcher tries the literal substitution first, then retries with `?`
+//! inserted at the alias/property-accessor boundary. This composes with
+//! head's removal of the optional chain.
 //!
 //! There is no corresponding base statement to strip — the base reads the
 //! configured path inline at each use site.
@@ -65,7 +69,11 @@ pub(super) fn apply_helper_zero_arg_alias(
 
 /// Leaf-pair pre-empt: head node's compact text begins with a registered
 /// alias local; substituting the local with `base_path` yields a string
-/// equal to the base node's compact text.
+/// equal to the base node's compact text. The configured `base_path` may
+/// optionally end with `?` to denote a trailing optional-chain marker. Both
+/// forms are accepted — when the literal substitution does not match, the
+/// matcher retries with `?` inserted at the alias/after boundary, provided
+/// `after` begins with a property accessor (`.` or `[`).
 pub(super) fn is_helper_zero_arg_alias_pair(ctx: &WalkCtx, base: Node, head: Node) -> bool {
     if ctx.helper_zero_arg_aliases.is_empty() {
         return false;
@@ -83,6 +91,12 @@ pub(super) fn is_helper_zero_arg_alias_pair(ctx: &WalkCtx, base: Node, head: Nod
         let substituted = format!("{}{}", alias.base_path, after);
         if substituted == base_text {
             return true;
+        }
+        if !alias.base_path.ends_with('?') && (after.starts_with('.') || after.starts_with('[')) {
+            let substituted_optchain = format!("{}?{}", alias.base_path, after);
+            if substituted_optchain == base_text {
+                return true;
+            }
         }
     }
     false

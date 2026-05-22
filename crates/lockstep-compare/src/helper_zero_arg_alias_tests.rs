@@ -106,3 +106,27 @@ fn gap2b_rejects_when_property_chain_diverges() {
         }";
     assert_flagged_raw(base, head, &zero_arg_opts());
 }
+
+#[test]
+fn alias_path_without_trailing_optional_chain_still_substitutes() {
+    // v0.1.17: alias path lacks trailing `?` but matcher inserts one at the
+    // alias/property-accessor boundary when needed.
+    let mut map = HashMap::new();
+    map.insert("readCdnConfig".to_string(), "config.cdn_config".to_string());
+    let mut opts = build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
+        narrowing_helpers_aliases: Some(map),
+        ..OptsOverrides::default()
+    });
+    opts.path = PathBuf::from("test.ts");
+    let base = "function f(config) {
+            return config.cdn_config?.host;
+        }";
+    let head = "function f(config) {
+            const cdnConfig = readCdnConfig();
+            return cdnConfig.host;
+        }";
+    assert_equiv_raw(base, head, &opts);
+}

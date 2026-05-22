@@ -63,7 +63,11 @@ pub struct Config {
     /// base shape that the helper unwraps. Enables the Gap 2A alias.
     pub narrowing_helpers_unwrap: HashMap<String, String>,
     /// Map of zero-argument config-reader helper name → base path text the
-    /// helper reads. Enables the Gap 2B alias.
+    /// helper reads. Enables the Gap 2B alias. The path value may optionally
+    /// end with `?` to mark an optional-chain at the alias boundary
+    /// (`"config.cdn_config?"`); the matcher also accepts the cleaner form
+    /// without the trailing marker (`"config.cdn_config"`) and inserts `?`
+    /// at the alias/property-accessor boundary when needed to match base text.
     pub narrowing_helpers_aliases: HashMap<String, String>,
     /// Accept the composition of a zero-arg helper alias + optional-chain
     /// removal + nullish widening with a safe-default literal at one AST

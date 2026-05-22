@@ -17,7 +17,11 @@
 //! and `DEFAULT` is one of the safe defaults recognized by
 //! [`crate::pure_narrowing_helper::is_safe_default`]. Subsequent reads of
 //! `LOCAL` in the enclosing block compare equal to base nodes whose compact
-//! text matches `EXPR`.
+//! text matches `EXPR` *modulo optional-chain markers* (`?.` and `?[`).
+//! Head can defensively add `?.` against a base direct access (or remove
+//! `?.` against a base optional access) — the `?? DEFAULT` already
+//! normalizes the value, so the runtime-edge divergence sits in the same
+//! envelope as the rest of the narrowing-helper rules.
 //!
 //! Composes with the rest of the walker — Rule 2 (destructure-then-narrow)
 //! reuses the same per-statement recognition. Aliases are scope-bounded by
@@ -37,7 +41,13 @@ use crate::pure_narrowing_helper::{is_safe_default, recognized_helper_name, sole
 use crate::walk::{HelperCallSiteAlias, WalkCtx};
 
 /// Leaf-pair pre-empt: head identifier matches a registered alias and the
-/// base node's compact text matches the alias's `base_expr_text`.
+/// base node's compact text matches the alias's `base_expr_text` modulo
+/// optional-chain markers. The `?.` tolerance accepts a head helper arg
+/// that defensively adds optional chaining against a base reference that
+/// directly accesses the property (and vice versa) — the helper's
+/// `?? DEFAULT` already guarantees a defined value at the use site, so
+/// the divergence at the runtime edge sits in the same envelope as the
+/// rest of the rule.
 pub(super) fn is_helper_call_site_alias_pair(ctx: &WalkCtx, base: Node, head: Node) -> bool {
     if !ctx.allow_helper_call_site_substitution {
         return false;
@@ -53,7 +63,35 @@ pub(super) fn is_helper_call_site_alias_pair(ctx: &WalkCtx, base: Node, head: No
     else {
         return false;
     };
-    compact_node_text(base, ctx.base_src) == alias.base_expr_text
+    equal_modulo_optional_chain(
+        &compact_node_text(base, ctx.base_src),
+        &alias.base_expr_text,
+    )
+}
+
+/// String equality modulo optional-chain markers: `?` characters that
+/// immediately precede `.` or `[` are stripped from both sides before
+/// comparison. Leaves other `?` characters alone (e.g. bare `?` inside a
+/// ternary), though compact text from member-/subscript-/identifier-/
+/// call-expression nodes is unlikely to contain those.
+fn equal_modulo_optional_chain(a: &str, b: &str) -> bool {
+    strip_optional_chain_markers(a) == strip_optional_chain_markers(b)
+}
+
+fn strip_optional_chain_markers(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'?' && i + 1 < bytes.len() && (bytes[i + 1] == b'.' || bytes[i + 1] == b'[')
+        {
+            i += 1;
+            continue;
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
 }
 
 /// Composable block-strip. Scans `head` for `const LOCAL = HELPER(EXPR) ??
