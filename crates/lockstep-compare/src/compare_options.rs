@@ -117,7 +117,11 @@ pub struct CompareOptions {
     /// Map of zero-argument config-reader helper name → base expression
     /// path the helper reads. When set and the head pattern
     /// `const LOCAL = HELPER();` is observed, subsequent head accesses
-    /// `LOCAL.X` compare equal to base `BASE_PATH.X`. See
+    /// `LOCAL.X` compare equal to base `BASE_PATH.X`. The path value may
+    /// optionally end with `?` to mark an optional-chain at the alias
+    /// boundary (`"config.cdn_config?"`); the matcher also accepts the
+    /// cleaner form without the trailing marker and inserts `?` at the
+    /// alias/property-accessor boundary when needed. See
     /// `helper_zero_arg_alias`.
     pub narrowing_helpers_aliases: HashMap<String, String>,
     /// Accept the composition of a registered zero-arg helper alias with

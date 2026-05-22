@@ -16,9 +16,11 @@
 //!
 //! where `LOCAL` was previously declared in head as `const LOCAL = HELPER();`
 //! and `HELPER` is registered in `narrowing_helpers_aliases` mapping to
-//! some `BASE_PATH` (e.g. `config.cdn_config?`). The base node at the same
-//! position has compact text equal to `BASE_PATH.PROP` (with `?.` between
-//! the path and PROP, preserved by the alias machinery).
+//! some `BASE_PATH` (e.g. `config.cdn_config?` or `config.cdn_config`).
+//! Both forms are accepted: the alias resolver tries the literal
+//! substitution first and, if it fails, retries with `?` inserted at the
+//! alias/property-accessor boundary. The base node at the same position
+//! has compact text equal to either `BASE_PATH.PROP` or `BASE_PATH?.PROP`.
 //!
 //! `DEFAULT` is one of `string` | `number` | `null` | `true` | `false` |
 //! `undefined` | empty-object | empty-array, per

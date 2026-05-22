@@ -13,6 +13,12 @@ fn alias_map() -> HashMap<String, String> {
     map
 }
 
+fn alias_map_without_trailing_chain() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    map.insert("readCdnConfig".to_string(), "config.cdn_config".to_string());
+    map
+}
+
 fn composition_opts() -> CompareOptions {
     let mut opts = build_opts(OptsOverrides {
         report_all: true,
@@ -20,6 +26,33 @@ fn composition_opts() -> CompareOptions {
         narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
         narrowing_helpers_aliases: Some(alias_map()),
         alias_helper_optional_chain_composition: true,
+        ..OptsOverrides::default()
+    });
+    opts.path = PathBuf::from("test.ts");
+    opts
+}
+
+fn composition_opts_without_trailing_chain() -> CompareOptions {
+    let mut opts = build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
+        narrowing_helpers_aliases: Some(alias_map_without_trailing_chain()),
+        alias_helper_optional_chain_composition: true,
+        ..OptsOverrides::default()
+    });
+    opts.path = PathBuf::from("test.ts");
+    opts
+}
+
+fn mixed_rule_opts_without_trailing_chain() -> CompareOptions {
+    let mut opts = build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string(), "asString".to_string()]),
+        narrowing_helpers_aliases: Some(alias_map_without_trailing_chain()),
+        alias_helper_optional_chain_composition: true,
+        helper_call_site_substitution: true,
         ..OptsOverrides::default()
     });
     opts.path = PathBuf::from("test.ts");
@@ -150,4 +183,81 @@ fn rejects_when_lhs_is_unrelated_local() {
             return `${other ?? \"\"}`;
         }";
     assert_flagged_raw(base, head, &composition_opts());
+}
+
+// --- v0.1.17 Gap 1 — alias path tolerates omitted trailing `?` ---
+
+#[test]
+fn composes_in_template_with_alias_path_lacking_trailing_optional_chain() {
+    let base = "function f(config) {
+            return `${config.cdn_config?.protocol}`;
+        }";
+    let head = "function f(config) {
+            const cdnConfig = readCdnConfig();
+            return `${cdnConfig.protocol ?? \"\"}`;
+        }";
+    assert_equiv_raw(base, head, &composition_opts_without_trailing_chain());
+}
+
+#[test]
+fn composes_sibling_alias_helper_slots_without_trailing_chain_marker() {
+    let base = "function f(config) {
+            return `${config.cdn_config?.protocol}://${config.cdn_config?.host}`;
+        }";
+    let head = "function f(config) {
+            const cdnConfig = readCdnConfig();
+            return `${cdnConfig.protocol ?? \"\"}://${cdnConfig.host ?? \"\"}`;
+        }";
+    assert_equiv_raw(base, head, &composition_opts_without_trailing_chain());
+}
+
+#[test]
+fn composes_with_multi_segment_alias_path_lacking_trailing_chain() {
+    let mut map = HashMap::new();
+    map.insert("readDeep".to_string(), "a.b.c".to_string());
+    let mut opts = build_opts(OptsOverrides {
+        report_all: true,
+        pure_narrowing_helper: true,
+        narrowing_helpers: Some(vec!["readDeep".to_string()]),
+        narrowing_helpers_aliases: Some(map),
+        alias_helper_optional_chain_composition: true,
+        ..OptsOverrides::default()
+    });
+    opts.path = PathBuf::from("test.ts");
+    let base = "function f(a) {
+            return `${a.b.c?.x}`;
+        }";
+    let head = "function f(a) {
+            const cAlias = readDeep();
+            return `${cAlias.x ?? \"\"}`;
+        }";
+    assert_equiv_raw(base, head, &opts);
+}
+
+#[test]
+fn composes_with_mixed_rule_siblings_in_one_template() {
+    let base = "function f(config, clientData) {
+            return `${config.cdn_config?.protocol}://${clientData.subdomain}`;
+        }";
+    let head = "function asString(v) { return typeof v === \"string\" ? v : undefined; }
+        function f(config, clientData) {
+            const cdnConfig = readCdnConfig();
+            const subdomain = asString(clientData?.subdomain) ?? \"\";
+            return `${cdnConfig.protocol ?? \"\"}://${subdomain}`;
+        }";
+    assert_equiv_raw(base, head, &mixed_rule_opts_without_trailing_chain());
+}
+
+#[test]
+fn full_canonical_template_with_mixed_rules_and_no_chain_marker_in_alias() {
+    let base = "function f(config, clientData, userUuid) {
+            return `${config.cdn_config?.protocol}://${clientData.subdomain}.${config.cdn_config?.host}/u/${userUuid}`;
+        }";
+    let head = "function asString(v) { return typeof v === \"string\" ? v : undefined; }
+        function f(config, clientData, userUuid) {
+            const cdnConfig = readCdnConfig();
+            const subdomain = asString(clientData?.subdomain) ?? \"\";
+            return `${cdnConfig.protocol ?? \"\"}://${subdomain}.${cdnConfig.host ?? \"\"}/u/${userUuid}`;
+        }";
+    assert_equiv_raw(base, head, &mixed_rule_opts_without_trailing_chain());
 }
