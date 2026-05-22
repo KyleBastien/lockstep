@@ -6,11 +6,14 @@ use crate::test_helpers::{assert_equiv_raw, assert_flagged_raw, build_opts, Opts
 
 fn zero_arg_opts() -> CompareOptions {
     let mut map = HashMap::new();
-    map.insert("readPpConfig".to_string(), "config.pp_config?".to_string());
+    map.insert(
+        "readCdnConfig".to_string(),
+        "config.cdn_config?".to_string(),
+    );
     let mut opts = build_opts(OptsOverrides {
         report_all: true,
         pure_narrowing_helper: true,
-        narrowing_helpers: Some(vec!["readPpConfig".to_string()]),
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
         narrowing_helpers_aliases: Some(map),
         ..OptsOverrides::default()
     });
@@ -22,7 +25,7 @@ fn opts_without_aliases_table() -> CompareOptions {
     let mut opts = build_opts(OptsOverrides {
         report_all: true,
         pure_narrowing_helper: true,
-        narrowing_helpers: Some(vec!["readPpConfig".to_string()]),
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
         ..OptsOverrides::default()
     });
     opts.path = PathBuf::from("test.ts");
@@ -32,11 +35,11 @@ fn opts_without_aliases_table() -> CompareOptions {
 #[test]
 fn gap2b_zero_arg_helper_alias_substitutes_member_access() {
     let base = "function f(config) {
-            return config.pp_config?.host;
+            return config.cdn_config?.host;
         }";
     let head = "function f(config) {
-            const ppConfig = readPpConfig();
-            return ppConfig.host;
+            const cdnConfig = readCdnConfig();
+            return cdnConfig.host;
         }";
     assert_equiv_raw(base, head, &zero_arg_opts());
 }
@@ -44,11 +47,11 @@ fn gap2b_zero_arg_helper_alias_substitutes_member_access() {
 #[test]
 fn gap2b_zero_arg_helper_alias_substitutes_multiple_uses() {
     let base = "function f(config, subdomain) {
-            return `${config.pp_config?.protocol}://${subdomain}.${config.pp_config?.host}/`;
+            return `${config.cdn_config?.protocol}://${subdomain}.${config.cdn_config?.host}/`;
         }";
     let head = "function f(config, subdomain) {
-            const ppConfig = readPpConfig();
-            return `${ppConfig.protocol}://${subdomain}.${ppConfig.host}/`;
+            const cdnConfig = readCdnConfig();
+            return `${cdnConfig.protocol}://${subdomain}.${cdnConfig.host}/`;
         }";
     assert_equiv_raw(base, head, &zero_arg_opts());
 }
@@ -56,11 +59,11 @@ fn gap2b_zero_arg_helper_alias_substitutes_multiple_uses() {
 #[test]
 fn gap2b_rejects_when_aliases_table_unset() {
     let base = "function f(config) {
-            return config.pp_config?.host;
+            return config.cdn_config?.host;
         }";
     let head = "function f(config) {
-            const ppConfig = readPpConfig();
-            return ppConfig.host;
+            const cdnConfig = readCdnConfig();
+            return cdnConfig.host;
         }";
     assert_flagged_raw(base, head, &opts_without_aliases_table());
 }
@@ -69,21 +72,24 @@ fn gap2b_rejects_when_aliases_table_unset() {
 fn gap2b_rejects_when_helper_takes_arguments() {
     // Zero-arg rule must not fire for `HELPER(x)`.
     let mut map = HashMap::new();
-    map.insert("readPpConfig".to_string(), "config.pp_config?".to_string());
+    map.insert(
+        "readCdnConfig".to_string(),
+        "config.cdn_config?".to_string(),
+    );
     let mut opts = build_opts(OptsOverrides {
         report_all: true,
         pure_narrowing_helper: true,
-        narrowing_helpers: Some(vec!["readPpConfig".to_string()]),
+        narrowing_helpers: Some(vec!["readCdnConfig".to_string()]),
         narrowing_helpers_aliases: Some(map),
         ..OptsOverrides::default()
     });
     opts.path = PathBuf::from("test.ts");
     let base = "function f(config) {
-            return config.pp_config?.host;
+            return config.cdn_config?.host;
         }";
     let head = "function f(config) {
-            const ppConfig = readPpConfig(config);
-            return ppConfig.host;
+            const cdnConfig = readCdnConfig(config);
+            return cdnConfig.host;
         }";
     assert_flagged_raw(base, head, &opts);
 }
@@ -92,11 +98,11 @@ fn gap2b_rejects_when_helper_takes_arguments() {
 fn gap2b_rejects_when_property_chain_diverges() {
     // Head reads .other; base reads .host. Substitution would not match.
     let base = "function f(config) {
-            return config.pp_config?.host;
+            return config.cdn_config?.host;
         }";
     let head = "function f(config) {
-            const ppConfig = readPpConfig();
-            return ppConfig.other;
+            const cdnConfig = readCdnConfig();
+            return cdnConfig.other;
         }";
     assert_flagged_raw(base, head, &zero_arg_opts());
 }

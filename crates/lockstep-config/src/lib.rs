@@ -46,6 +46,13 @@ pub struct Config {
     pub allow_defensive_log_guard: bool,
     pub defensive_log_guard_methods: Vec<String>,
     pub allow_dead_defensive_optional_chain_removal: bool,
+    /// Dotted method paths that count as log-only consumers for the
+    /// `allow_dead_defensive_optional_chain_removal` rule. Matching is
+    /// exact-suffix on the callee's compact text (boundary must be `.` or
+    /// start-of-text). Empty list (default) leaves the rule's existing
+    /// behavior unchanged. See the `dead_defensive_optional_chain`
+    /// log-consumer witness for runtime-edge divergence details.
+    pub dead_defensive_log_consumer_methods: Vec<String>,
     pub allow_unknown_catch_narrowing: bool,
     pub allow_promise_settled_discrimination: bool,
     pub allow_pure_narrowing_helper: bool,
@@ -58,6 +65,12 @@ pub struct Config {
     /// Map of zero-argument config-reader helper name → base path text the
     /// helper reads. Enables the Gap 2B alias.
     pub narrowing_helpers_aliases: HashMap<String, String>,
+    /// Accept the composition of a zero-arg helper alias + optional-chain
+    /// removal + nullish widening with a safe-default literal at one AST
+    /// position. Diverges observably when the aliased base path is actually
+    /// nullish at runtime (base interpolates `"undefined"`, head substitutes
+    /// the literal). Default OFF.
+    pub allow_alias_helper_optional_chain_composition: bool,
     pub report_all_findings: bool,
     pub ignore: Vec<String>,
 }
@@ -91,6 +104,7 @@ impl Default for Config {
             allow_defensive_log_guard: false,
             defensive_log_guard_methods: default_log_guard_methods(),
             allow_dead_defensive_optional_chain_removal: false,
+            dead_defensive_log_consumer_methods: Vec::new(),
             allow_unknown_catch_narrowing: false,
             allow_promise_settled_discrimination: false,
             allow_pure_narrowing_helper: false,
@@ -99,6 +113,7 @@ impl Default for Config {
             allow_destructure_then_narrow: false,
             narrowing_helpers_unwrap: HashMap::new(),
             narrowing_helpers_aliases: HashMap::new(),
+            allow_alias_helper_optional_chain_composition: false,
             report_all_findings: true,
             ignore: vec![
                 "**/*.test.ts".into(),
@@ -189,6 +204,8 @@ mod tests {
         assert!(c.narrowing_helpers.is_empty());
         assert!(c.narrowing_helpers_unwrap.is_empty());
         assert!(c.narrowing_helpers_aliases.is_empty());
+        assert!(!c.allow_alias_helper_optional_chain_composition);
+        assert!(c.dead_defensive_log_consumer_methods.is_empty());
         assert_eq!(
             c.defensive_log_guard_methods,
             vec!["debug", "info", "warn", "error", "trace", "log"]

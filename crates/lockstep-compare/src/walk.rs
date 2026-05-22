@@ -7,6 +7,7 @@
 use lockstep_core::Finding;
 use tree_sitter::Node;
 
+use crate::alias_helper_widening::is_alias_helper_widening_pair;
 use crate::align::align_children;
 use crate::array_first_equivalence::is_array_first_pair;
 use crate::async_propagation::{maybe_unwrap_await, try_callable_async_propagation};
@@ -80,6 +81,7 @@ fn leaf_alias_consumed(ctx: &WalkCtx, base: Node, head: Node) -> bool {
         || is_unknown_catch_narrowing_pair(ctx, base, head)
         || is_helper_call_site_alias_pair(ctx, base, head)
         || is_helper_zero_arg_alias_pair(ctx, base, head)
+        || is_alias_helper_widening_pair(ctx, base, head)
         || is_pure_narrowing_helper_pair(ctx, base, head)
         || is_array_first_pair(ctx, base, head)
         || is_nullish_widening_pair(ctx, base, head)

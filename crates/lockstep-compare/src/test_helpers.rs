@@ -23,6 +23,7 @@ pub(crate) struct OptsOverrides {
     pub(crate) defensive_log_guard: bool,
     pub(crate) defensive_log_guard_methods: Option<Vec<String>>,
     pub(crate) dead_defensive_optional_chain_removal: bool,
+    pub(crate) dead_defensive_log_consumer_methods: Option<Vec<String>>,
     pub(crate) unknown_catch_narrowing: bool,
     pub(crate) promise_settled_discrimination: bool,
     pub(crate) pure_narrowing_helper: bool,
@@ -31,6 +32,7 @@ pub(crate) struct OptsOverrides {
     pub(crate) destructure_then_narrow: bool,
     pub(crate) narrowing_helpers_unwrap: Option<HashMap<String, String>>,
     pub(crate) narrowing_helpers_aliases: Option<HashMap<String, String>>,
+    pub(crate) alias_helper_optional_chain_composition: bool,
 }
 
 pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
@@ -58,6 +60,9 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_defensive_log_guard: over.defensive_log_guard,
         defensive_log_guard_methods: methods,
         allow_dead_defensive_optional_chain_removal: over.dead_defensive_optional_chain_removal,
+        dead_defensive_log_consumer_methods: over
+            .dead_defensive_log_consumer_methods
+            .unwrap_or_default(),
         allow_unknown_catch_narrowing: over.unknown_catch_narrowing,
         allow_promise_settled_discrimination: over.promise_settled_discrimination,
         allow_pure_narrowing_helper: over.pure_narrowing_helper,
@@ -66,6 +71,7 @@ pub(crate) fn build_opts(over: OptsOverrides) -> CompareOptions {
         allow_destructure_then_narrow: over.destructure_then_narrow,
         narrowing_helpers_unwrap: over.narrowing_helpers_unwrap.unwrap_or_default(),
         narrowing_helpers_aliases: over.narrowing_helpers_aliases.unwrap_or_default(),
+        allow_alias_helper_optional_chain_composition: over.alias_helper_optional_chain_composition,
     }
 }
 

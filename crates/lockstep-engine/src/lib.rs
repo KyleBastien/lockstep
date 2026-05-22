@@ -97,6 +97,7 @@ fn check_pair(
         defensive_log_guard_methods: config.defensive_log_guard_methods.clone(),
         allow_dead_defensive_optional_chain_removal: config
             .allow_dead_defensive_optional_chain_removal,
+        dead_defensive_log_consumer_methods: config.dead_defensive_log_consumer_methods.clone(),
         allow_unknown_catch_narrowing: config.allow_unknown_catch_narrowing,
         allow_promise_settled_discrimination: config.allow_promise_settled_discrimination,
         allow_pure_narrowing_helper: config.allow_pure_narrowing_helper,
@@ -107,6 +108,8 @@ fn check_pair(
             || config.allow_pure_narrowing_helper,
         narrowing_helpers_unwrap: config.narrowing_helpers_unwrap.clone(),
         narrowing_helpers_aliases: config.narrowing_helpers_aliases.clone(),
+        allow_alias_helper_optional_chain_composition: config
+            .allow_alias_helper_optional_chain_composition,
     };
     out.extend(compare(&base_norm, &head_norm, &opts));
     Ok(out)
@@ -282,21 +285,24 @@ mod tests {
     #[test]
     fn narrowing_helpers_aliases_table_threads_through_engine() {
         let mut aliases_table = std::collections::HashMap::new();
-        aliases_table.insert("readPpConfig".to_string(), "config.pp_config?".to_string());
+        aliases_table.insert(
+            "readCdnConfig".to_string(),
+            "config.cdn_config?".to_string(),
+        );
         let config = Config {
             allow_pure_narrowing_helper: true,
-            narrowing_helpers: vec!["readPpConfig".to_string()],
+            narrowing_helpers: vec!["readCdnConfig".to_string()],
             narrowing_helpers_aliases: aliases_table,
             report_all_findings: true,
             ..Config::default()
         };
         assert_engine_approves_with_config(
             "function f(config) {\n\
-                return config.pp_config?.host;\n\
+                return config.cdn_config?.host;\n\
             }\n",
             "function f(config) {\n\
-                const ppConfig = readPpConfig();\n\
-                return ppConfig.host;\n\
+                const cdnConfig = readCdnConfig();\n\
+                return cdnConfig.host;\n\
             }\n",
             config,
         );

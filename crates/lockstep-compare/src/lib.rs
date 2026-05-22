@@ -1,6 +1,7 @@
 //! Structural AST comparator. Walks two JS trees in lockstep and emits
 //! `Finding`s for the first (or every) divergence.
 
+mod alias_helper_widening;
 mod align;
 mod array_first_equivalence;
 mod async_propagation;
@@ -8,6 +9,7 @@ mod callable_equivalence;
 mod callback_param_rename;
 mod class_equivalence;
 mod compare_options;
+mod dead_defensive_log_consumer;
 mod dead_defensive_optional_chain;
 mod defensive_log_guard;
 mod defensive_null_guard;
@@ -38,6 +40,8 @@ mod walk_ctx;
 pub use compare_options::CompareOptions;
 pub use entry::compare;
 
+#[cfg(test)]
+mod alias_helper_widening_tests;
 #[cfg(test)]
 mod async_propagation_tests;
 #[cfg(test)]
