@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.16](https://github.com/KyleBastien/lockstep/compare/v0.1.15...v0.1.16) (2026-05-22)
+
+
+### Features
+
+* **compare:** v0.1.16 alias_helper_optional_chain_composition + dead_defensive_log_consumer witness ([#34](https://github.com/KyleBastien/lockstep/issues/34)) ([78e4402](https://github.com/KyleBastien/lockstep/commit/78e440293422144f6883f69c8c07de28ce9e61b1))
+
 ## [0.1.15](https://github.com/KyleBastien/lockstep/compare/v0.1.14...v0.1.15) (2026-05-21)
 
 
