@@ -300,6 +300,16 @@ allow_non_null_alias_local = false
 allow_defensive_log_guard = false
 defensive_log_guard_methods = ["debug", "info", "warn", "error", "trace", "log"]
 allow_dead_defensive_optional_chain_removal = false
+# v0.1.16: extends `allow_dead_defensive_optional_chain_removal` with a witness
+# for chained values consumed only by logging methods. Entries are dotted
+# method paths matched by exact-suffix against the callee's compact text
+# (boundary must be `.` or start-of-text), so `"logger.error"` matches
+# `logger.error`, `this.logger.error`, `self.logger.error`. Empty list (default)
+# leaves the rule unchanged. Documented runtime-edge divergence: when the
+# chained value is actually nullish at runtime, base interpolates "undefined"
+# whereas head throws on the property access.
+# Example: dead_defensive_log_consumer_methods = ["logger.error", "logger.warn", "console.error"]
+dead_defensive_log_consumer_methods = []
 allow_unknown_catch_narrowing = false
 allow_promise_settled_discrimination = false
 allow_pure_narrowing_helper = false
@@ -308,6 +318,11 @@ narrowing_helpers = []
 # automatically. Set either to `true` explicitly to enable only that rule.
 allow_helper_call_site_substitution = false
 allow_destructure_then_narrow = false
+# v0.1.16: accept composition of helper alias + optional-chain removal + `??`
+# widening with a safe-default literal at one AST position. Diverges
+# observably when the aliased base path is nullish at runtime — see
+# `alias_helper_widening`.
+allow_alias_helper_optional_chain_composition = false
 report_all_findings = true
 ignore = [
     "**/*.test.ts",
@@ -338,7 +353,7 @@ ignore = [
 # strips the declaration and substitutes head reads of `LOCAL[.X.Y…]` with
 # base reads of `<path>[.X.Y…]`. Example:
 #   [narrowing_helpers_aliases]
-#   readPpConfig = "config.pp_config?"
+#   readCdnConfig = "config.cdn_config?"
 [narrowing_helpers_aliases]
 "#;
 

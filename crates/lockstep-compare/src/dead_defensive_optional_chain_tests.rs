@@ -38,7 +38,7 @@ fn function_pair(signature: &str, base_body: &str, head_body: &str) -> (String, 
     (base, head)
 }
 
-/// Positive: the canonical PushPress shape — `if (!o?.p) { o.p = …; }`.
+/// Positive: the canonical `if (!o?.p) { o.p = …; }` shape.
 #[test]
 fn dead_defensive_optional_chain_absorbs_negated_condition() {
     assert_equiv_function(
@@ -209,3 +209,117 @@ fn dead_defensive_optional_chain_resolves_non_null_alias_local() {
     });
     assert_equiv_raw(base, head, &opts);
 }
+
+fn log_consumer_opts(methods: &[&str]) -> CompareOptions {
+    build_opts(OptsOverrides {
+        report_all: true,
+        dead_defensive_optional_chain_removal: true,
+        dead_defensive_log_consumer_methods: Some(
+            methods.iter().map(|s| String::from(*s)).collect(),
+        ),
+        ..OptsOverrides::default()
+    })
+}
+
+enum Verdict {
+    Equiv,
+    Flagged,
+}
+
+/// Drives all log-consumer cases through one expectation helper so the
+/// per-test boilerplate stays a single line.
+fn check_log_consumer(
+    methods: &[&str],
+    signature: &str,
+    base_body: &str,
+    head_body: &str,
+    verdict: Verdict,
+) {
+    let (base, head) = function_pair(signature, base_body, head_body);
+    let opts = log_consumer_opts(methods);
+    match verdict {
+        Verdict::Equiv => assert_equiv_raw(&base, &head, &opts),
+        Verdict::Flagged => assert_flagged_raw(&base, &head, &opts),
+    }
+}
+
+macro_rules! log_consumer_case {
+    ($name:ident, $verdict:expr, $methods:expr, $sig:expr, $base:expr, $head:expr) => {
+        #[test]
+        fn $name() {
+            check_log_consumer(&$methods, $sig, $base, $head, $verdict);
+        }
+    };
+}
+
+log_consumer_case!(
+    log_consumer_absorbs_optional_chain_in_logger_arg,
+    Verdict::Equiv,
+    ["logger.error"],
+    "obj",
+    "this.logger.error(`failed: ${obj?.id}`);",
+    "this.logger.error(`failed: ${obj.id}`);"
+);
+
+log_consumer_case!(
+    log_consumer_absorbs_when_first_arg_is_chained_value,
+    Verdict::Equiv,
+    ["logger.warn"],
+    "obj",
+    "logger.warn(obj?.id);",
+    "logger.warn(obj.id);"
+);
+
+log_consumer_case!(
+    log_consumer_absorbs_in_catch_block_template,
+    Verdict::Equiv,
+    ["logger.error"],
+    "subscription",
+    "try { run(); } catch (e) { this.logger.error(e, `Failed: ${subscription?.uuid}`); }",
+    "try { run(); } catch (e) { this.logger.error(e, `Failed: ${subscription.uuid}`); }"
+);
+
+log_consumer_case!(
+    log_consumer_allows_multiarg_logger,
+    Verdict::Equiv,
+    ["logger.error"],
+    "err, obj",
+    "this.logger.error(err, `${obj?.id}`);",
+    "this.logger.error(err, `${obj.id}`);"
+);
+
+log_consumer_case!(
+    log_consumer_rejects_when_allowlist_empty,
+    Verdict::Flagged,
+    [] as [&str; 0],
+    "obj",
+    "this.logger.error(`failed: ${obj?.id}`);",
+    "this.logger.error(`failed: ${obj.id}`);"
+);
+
+log_consumer_case!(
+    log_consumer_rejects_when_callee_not_in_allowlist,
+    Verdict::Flagged,
+    ["logger.warn"],
+    "obj",
+    "this.logger.error(`failed: ${obj?.id}`);",
+    "this.logger.error(`failed: ${obj.id}`);"
+);
+
+log_consumer_case!(
+    log_consumer_rejects_when_chained_value_wrapped_in_inner_call,
+    Verdict::Flagged,
+    ["logger.error"],
+    "obj",
+    "this.logger.error(recordAndReturn(obj?.id));",
+    "this.logger.error(recordAndReturn(obj.id));"
+);
+
+log_consumer_case!(
+    log_consumer_rejects_when_optional_chain_is_outside_arglist,
+    Verdict::Flagged,
+    ["logger.error"],
+    "obj",
+    "const x = obj?.id;\nthis.logger.error(`failed: x`);",
+    "const x = obj.id;\nthis.logger.error(`failed: x`);"
+);

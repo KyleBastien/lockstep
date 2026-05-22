@@ -68,6 +68,14 @@ pub struct CompareOptions {
     /// the chained object cannot be null/undefined at runtime in base. See
     /// `dead_defensive_optional_chain` for the deadness-witness rules.
     pub allow_dead_defensive_optional_chain_removal: bool,
+    /// Dotted method paths recognized as log-only consumers by the
+    /// `allow_dead_defensive_optional_chain_removal` log-consumer witness.
+    /// When non-empty, a removed `?.` whose chained value lexically nests
+    /// inside an argument list of a matching call is accepted as
+    /// equivalent. Match shape: exact-suffix on callee compact text, with
+    /// boundary on `.` or start-of-text. Empty list (default) leaves the
+    /// rule's existing if-statement-only witness in force.
+    pub dead_defensive_log_consumer_methods: Vec<String>,
     /// Accept a head-side `ERR instanceof Error ? ERR.PROP : <fallback>`
     /// ternary (inline or extracted into a `const`) as equivalent to a base
     /// bare `ERR.PROP` access, when `ERR` is bound by an enclosing
@@ -112,4 +120,10 @@ pub struct CompareOptions {
     /// `LOCAL.X` compare equal to base `BASE_PATH.X`. See
     /// `helper_zero_arg_alias`.
     pub narrowing_helpers_aliases: HashMap<String, String>,
+    /// Accept the composition of a registered zero-arg helper alias with
+    /// an optional-chain removal AND a `??` widening to a safe-default
+    /// literal at one AST position. Diverges observably when the aliased
+    /// base path is actually nullish at runtime — see
+    /// `alias_helper_widening`. Default OFF.
+    pub allow_alias_helper_optional_chain_composition: bool,
 }

@@ -30,6 +30,9 @@ pub(super) struct WalkCtx<'a> {
     pub(super) allow_defensive_log_guard: bool,
     pub(super) defensive_log_guard_methods: Vec<String>,
     pub(super) allow_dead_defensive_optional_chain_removal: bool,
+    /// Dotted method paths recognized as log-only consumers for the
+    /// dead-defensive optional-chain rule's log-consumer witness.
+    pub(super) dead_defensive_log_consumer_methods: Vec<String>,
     pub(super) allow_unknown_catch_narrowing: bool,
     pub(super) allow_promise_settled_discrimination: bool,
     pub(super) allow_pure_narrowing_helper: bool,
@@ -38,6 +41,7 @@ pub(super) struct WalkCtx<'a> {
     pub(super) narrowing_helpers: Vec<String>,
     pub(super) narrowing_helpers_unwrap: HashMap<String, String>,
     pub(super) narrowing_helpers_aliases: HashMap<String, String>,
+    pub(super) allow_alias_helper_optional_chain_composition: bool,
     pub(super) ignored_base_starts: Vec<usize>,
     pub(super) ignored_head_starts: Vec<usize>,
     pub(super) aliases: Vec<CacheAlias>,
@@ -75,7 +79,7 @@ pub(super) struct WalkCtx<'a> {
     /// vice versa. See `callback_param_rename`.
     pub(super) param_renames: Vec<ParamRename>,
     /// Zero-arg config-reader helper aliases. A head identifier `LOCAL` is
-    /// substituted with the registered base path text (e.g. `config.pp_config?`)
+    /// substituted with the registered base path text (e.g. `config.cdn_config?`)
     /// when comparing member-expression / identifier pairs. See
     /// `helper_zero_arg_alias`.
     pub(super) helper_zero_arg_aliases: Vec<HelperZeroArgAlias>,
@@ -109,6 +113,7 @@ impl<'a> WalkCtx<'a> {
             defensive_log_guard_methods: opts.defensive_log_guard_methods.clone(),
             allow_dead_defensive_optional_chain_removal: opts
                 .allow_dead_defensive_optional_chain_removal,
+            dead_defensive_log_consumer_methods: opts.dead_defensive_log_consumer_methods.clone(),
             allow_unknown_catch_narrowing: opts.allow_unknown_catch_narrowing,
             allow_promise_settled_discrimination: opts.allow_promise_settled_discrimination,
             allow_pure_narrowing_helper: opts.allow_pure_narrowing_helper,
@@ -117,6 +122,8 @@ impl<'a> WalkCtx<'a> {
             narrowing_helpers: opts.narrowing_helpers.clone(),
             narrowing_helpers_unwrap: opts.narrowing_helpers_unwrap.clone(),
             narrowing_helpers_aliases: opts.narrowing_helpers_aliases.clone(),
+            allow_alias_helper_optional_chain_composition: opts
+                .allow_alias_helper_optional_chain_composition,
             ignored_base_starts: Vec::new(),
             ignored_head_starts: Vec::new(),
             aliases: Vec::new(),
@@ -156,7 +163,7 @@ impl<'a> WalkCtx<'a> {
 /// stands in for `base_path` on base; when comparing member-expression /
 /// identifier nodes, head occurrences of `LOCAL[.X.Y…]` compare equal to
 /// base `base_path[.X.Y…]`. The path text typically contains an optional
-/// chain marker (e.g. `config.pp_config?`) which is preserved in
+/// chain marker (e.g. `config.cdn_config?`) which is preserved in
 /// substitutions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct HelperZeroArgAlias {

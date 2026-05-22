@@ -24,6 +24,7 @@
 
 use tree_sitter::Node;
 
+use crate::dead_defensive_log_consumer::log_consumer_witness;
 use crate::node_utils::{compact_node_text, first_named_child, node_text, raw_comparable_children};
 use crate::walk::WalkCtx;
 
@@ -60,6 +61,15 @@ pub(super) fn is_dead_defensive_chain(ctx: &WalkCtx, base: Node, head: Node) -> 
         return false;
     }
 
+    if if_unsafe_write_witness(ctx, base, &obj_text) {
+        return true;
+    }
+    log_consumer_witness(ctx, base)
+}
+
+/// Existing witness: the optional chain sits in the condition of an `if`
+/// whose `then` branch contains an unguarded unsafe write to `obj_text`.
+fn if_unsafe_write_witness(ctx: &WalkCtx, base: Node, obj_text: &str) -> bool {
     let Some(if_stmt) = enclosing_if_with_condition(base) else {
         return false;
     };
@@ -67,8 +77,7 @@ pub(super) fn is_dead_defensive_chain(ctx: &WalkCtx, base: Node, head: Node) -> 
         return false;
     };
     let body = unwrap_block(consequence);
-
-    deadness_witness(body, ctx.base_src, &obj_text)
+    deadness_witness(body, ctx.base_src, obj_text)
 }
 
 /// Returns `true` if `obj` and `property` match between base and head, either

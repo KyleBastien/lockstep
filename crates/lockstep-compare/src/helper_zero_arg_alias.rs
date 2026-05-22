@@ -15,7 +15,7 @@
 //! `LOCAL` ↔ `BASE_PATH` is registered. Subsequent head reads of
 //! `LOCAL[.X.Y…]` compare equal to base reads of `BASE_PATH[.X.Y…]`. The
 //! `BASE_PATH` text usually contains an optional-chain marker
-//! (`config.pp_config?`) — this is preserved so head's removal of the
+//! (`config.cdn_config?`) — this is preserved so head's removal of the
 //! optional chain composes with the alias.
 //!
 //! There is no corresponding base statement to strip — the base reads the
