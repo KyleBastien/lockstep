@@ -6,6 +6,13 @@ This project follows [Conventional Commits](https://www.conventionalcommits.org/
 release-please uses commit messages on `main` to generate this file and bump
 versions automatically.
 
+## [0.1.17](https://github.com/KyleBastien/lockstep/compare/v0.1.16...v0.1.17) (2026-05-22)
+
+
+### Features
+
+* **compare:** v0.1.17 alias path normalization + helper-arg optional-chain tolerance ([#36](https://github.com/KyleBastien/lockstep/issues/36)) ([62a1908](https://github.com/KyleBastien/lockstep/commit/62a19089c53e687bb89215fd52dc2f3c9a37d697))
+
 ## [0.1.16](https://github.com/KyleBastien/lockstep/compare/v0.1.15...v0.1.16) (2026-05-22)
 
 
